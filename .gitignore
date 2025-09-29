@@ -6,6 +6,7 @@ loki/
 
 # Secrets & env
 *.txt
+!finance/etl/requirements/req-*.txt
 .env
 finance/assets/*
 !finance/assets/example.yml
