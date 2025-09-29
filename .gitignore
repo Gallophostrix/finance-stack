@@ -1,3 +1,9 @@
+# Other containers
+grafana/
+alloy/
+prometheus/
+loki/
+
 # Secrets & env
 *.txt
 .env

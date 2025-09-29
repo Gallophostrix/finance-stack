@@ -1,11 +1,6 @@
-Here’s a **clean first draft of your `README.md` in English**, with a focus on **`compose.yml`**:
-
-```markdown
 # 📈 Finance Monitoring Stack
 
-A **self-hosted** stack to **track and analyze your portfolio** (crypto, stocks, cash) with  
-**PostgreSQL** as the data store, **Python ETL** jobs for data collection and performance metrics,  
-and **Grafana** for visualization.  
+A **self-hosted** stack to **track and analyze your portfolio** (crypto, stocks, cash) with **PostgreSQL** as the data store, **Python ETL** jobs for data collection and performance metrics, and **Grafana** for visualization.  
 Everything is orchestrated via **Docker Compose** for easy deployment and reproducibility.
 
 ---
@@ -62,7 +57,7 @@ and must **not** be committed to Git.
    ```bash
    git clone <repo-url>
    cd monitoring
-````
+   ```
 
 2. Provide your secrets:
 
@@ -88,8 +83,7 @@ and must **not** be committed to Git.
 
 ## 📊 Notes
 
-* The **ETL jobs** automatically fetch token balances (BTC, ADA, etc.),
-  compute EUR valuations via CoinGecko, and detect monthly flows.
+* The **ETL jobs** automatically fetch token balances (BTC, ADA, etc.), compute `EUR` valuations via CoinGecko, and detect monthly flows.
 * The **MWR ETL** computes Money-Weighted Returns per asset and category.
 * PostgreSQL is initialized automatically on first start using [`init.sql`](finance/sql/init.sql).
 * Grafana dashboards use the database views defined in `init.sql`.
@@ -100,12 +94,13 @@ and must **not** be committed to Git.
 
 * **Do not commit any secrets or credentials** to the repository.
 * Use `.gitignore` to exclude `*_pwd.txt`, local data volumes, and environment-specific configs.
-* All external access is currently loopback-only (`127.0.0.1`) for local testing.
 
 ---
 
 ## 🗺️ Roadmap
 
+* Refactoring of all the scripts and the global structure
+* Take into account rewards/airdrops/etc into flows
 * Add more chains (e.g. XRP, ETH) via new adapters
 * CI/CD pipeline for automatic testing and deployment
 * Improved alerting and notification system in Grafana
