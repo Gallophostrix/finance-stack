@@ -1,0 +1,4 @@
+requests
+pyyaml
+python-dateutil
+psycopg2-binary

@@ -1,0 +1,19 @@
+# Secrets & env
+*.txt
+.env
+finance/assets/*
+!finance/assets/example.yml
+
+# DB data / volumes (on ne versionne pas les données)
+finance/sql/*.dump
+finance/sql/*.bak
+
+# Python
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.log
+
+# IDE / OS
+.vscode/
+.DS_Store
