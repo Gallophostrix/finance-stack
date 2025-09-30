@@ -1,17 +1,17 @@
-# caches Python
+# Python cache files
 __pycache__/
 *.py[cod]
 
-# environnements virtuels
+# virtual environments
 .venv/
 venv/
 
-# dépôts et métadonnées
+# IDE settings
 .git/
 .gitignore
 .DS_Store
 
-# tests et artefacts
+# tests and artifacts
 tests/
 dist/
 build/
@@ -19,5 +19,5 @@ build/
 pytest_cache/
 htmlcov/
 
-# configs locales
+# local configs
 .env
