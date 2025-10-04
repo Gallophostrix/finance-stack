@@ -18,11 +18,18 @@ from .utils import (
 def detect_flows(cfg_chain: dict, start_date: date, end_date: date, *,
                  logger=None, http: Optional[HttpClient]=None, page_limit: int = 50) -> List[dict]:
     """
-    Renvoie une liste de flux:
-      { "d": date, "category": CATEGORY, "subcategory": SUBCATEGORY, "asset": SYMBOL,
-        "amount_native": Decimal, "kind": "in"|"out", "tx_hash": str|None }
-    NOTE: on lit 1 page max par adresse; si la plus ancienne tx de la page > start_date,
-          on loggue un warning (risque de troncature) mais on n’échoue pas.
+    Detect BTC flows (in/out) per address in the window [start_date, end_date].
+    Args:
+      cfg_chain: Parsed YAML configuration for the Bitcoin chain
+      start_date: Start date (inclusive)
+      end_date:   End date (inclusive)
+      logger:     Optional logger (if None, a default JSON logger is created)
+      http:       Optional shared HttpClient (if None, a new one is created and closed at the end)
+      page_limit: Max number of txrefs per address page (default 50, max 200)
+    
+    Returns:
+        flows = { "d": date,"category": CATEGORY, "subcategory": SUBCATEGORY, "asset": SYMBOL,
+                  "amount_native": Decimal, "kind": "in"|"out", "tx_hash": str|None }
     """
     log = logger or setup_json_logging()
 
@@ -83,14 +90,13 @@ def detect_flows(cfg_chain: dict, start_date: date, end_date: date, *,
                 "tx_hash": tx.get("tx_hash"),
             })
 
-        log.info("btc_flows_addr_done",
-                 extra={
-                    "job":"etl-api",
-                    "step":"flows",
-                    "asset":SYMBOL,
-                    "addr_tail": addr[-6:],
-                    "rows": len(flows)
-                })
+    log.info("btc_flows_addr_done",
+             extra={
+                "job":"etl-api",
+                "step":"flows",
+                "asset":SYMBOL,
+                "rows": len(flows)
+            })
 
     if http is None:
         httpc.close()

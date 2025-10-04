@@ -10,7 +10,7 @@ class JsonFormatter(logging.Formatter):
             "logger": record.name,
             "msg": record.getMessage(),
         }
-        # champs optionnels qu’on passera via extra=...
+        # Optional extra fields
         for k in ("job", "step", "as_of", "asset", "run_id", "duration_ms", "rows"):
             if hasattr(record, k):
                 payload[k] = getattr(record, k)
@@ -23,5 +23,5 @@ def setup_json_logging(level: int = logging.INFO) -> logging.Logger:
     root.handlers.clear()
     root.addHandler(handler)
     root.setLevel(level)
-    # bonne pratique: pas d’autres handlers, pas de propagation vers stderr
+    # No other handlers, no propagation
     return root

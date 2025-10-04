@@ -1,6 +1,10 @@
 # finance/etl/utils/db.py
-import os, time, psycopg2
+from __future__ import annotations
+import os, time
 from pathlib import Path
+from typing import Optional
+import psycopg2 # type: ignore
+from psycopg2.extensions import connection as PGConnection # type: ignore
 
 def read_db_pass() -> str:
     pass_file = os.environ.get("DB_PASS_FILE")
@@ -16,12 +20,19 @@ def make_dsn_from_env() -> str:
     pwd  = read_db_pass()
     return f"postgresql://{user}:{pwd}@{host}:{port}/{name}"
 
-def connect_with_retry(dsn: str, attempts: int = 8, base_sleep: float = 0.5):
-    last = None
+def connect_with_retry(
+        dsn: str,
+        attempts: int = 8,
+        base_sleep: float = 0.5
+    ) -> PGConnection:
+    last_exc: Optional[BaseException] = None
     for i in range(attempts):
         try:
             return psycopg2.connect(dsn)
         except Exception as e:
-            last = e
+            last_exc = e
             time.sleep(base_sleep * (2 ** i))  # backoff expo
-    raise last
+    # If we exhausted all attempts, raise the last exception
+    if last_exc is not None:
+        raise last_exc
+    raise RuntimeError("connect_with_retry failed without exception context")
