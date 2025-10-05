@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS core.accounts (
   account_type         TEXT NOT NULL CHECK (account_type IN ('address','stake_key','iban','broker_account','other')),
   external_identifier  TEXT NOT NULL,                            -- adresse/stake key/IBAN/id broker...
   label                TEXT,                                     -- "Ledger-1", "PEA Amundi", "Livret A ..."
-  "group"              TEXT NOT NULL CHECK ("group" IN ('Wallet','CEX','PEA','AV','Bank')),
+  "group"              TEXT NOT NULL CHECK ("group" IN ('wallet','CEX','PEA','AV','Bank')),
   is_active            BOOLEAN NOT NULL DEFAULT TRUE,
   UNIQUE (provider_id, account_type, external_identifier)
 );

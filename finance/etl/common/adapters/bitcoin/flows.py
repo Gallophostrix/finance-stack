@@ -33,9 +33,10 @@ def detect_flows(cfg_chain: dict, start_date: date, end_date: date, *,
     """
     log = logger or setup_json_logging()
 
-    base_url = (cfg_chain.get("provider", {}) or {}).get("base_url") or DEFAULT_BASE
-    token = (cfg_chain.get("provider", {}) or {}).get("token") or None
-    min_confs = (cfg_chain.get("provider", {}) or {}).get("min_confs")
+    src = cfg_chain.get("source", {}) or {}
+    base_url = src.get("base_url", DEFAULT_BASE).rstrip("/")
+    token = src.get("token") or None
+    min_confs = src.get("min_confs")
     addrs = get_addrs(cfg_chain)
 
     httpc = http or HttpClient(logger=log)

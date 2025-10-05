@@ -33,9 +33,16 @@ def fetch_balances(
     """
     log = logger or setup_json_logging()
 
-    base_url = ((cfg_chain.get("provider", {}) or {}).get("base_url") or "").rstrip("/") or None
-    raw = cfg_chain.get("stake_keys") or []
-    stake_keys = [(sk or "").strip() for sk in raw]
+    base_url = (cfg_chain.get("source", {}) or {}).get("base_url")
+    if base_url:
+        base_url = base_url.rstrip("/")
+    else:
+        base_url = None
+    stake_keys = [
+        (acc.get("id") or "").strip()
+        for acc in (cfg_chain.get("accounts") or [])
+        if isinstance(acc, dict) and acc.get("type") == "stake_key"
+    ]
     if not stake_keys or any(not sk for sk in stake_keys):
         # Fast fail and log if stake_keys is empty or has empty entries
         log.error("empty_stake_key",

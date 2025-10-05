@@ -29,10 +29,10 @@ def fetch_balances(cfg_chain: dict, *, logger=None, http: Optional[HttpClient]=N
     """
     log = logger or setup_json_logging()
 
-    base_url = ((cfg_chain.get("provider", {}) or {}).get("base_url")
-            or DEFAULT_BASE).rstrip("/")
-    token = (cfg_chain.get("provider", {}) or {}).get("token") or None
-    min_confs = (cfg_chain.get("provider", {}) or {}).get("min_confs")
+    src = cfg_chain.get("source", {}) or {}
+    base_url = src.get("base_url", DEFAULT_BASE).rstrip("/")
+    token = src.get("token") or None
+    min_confs = src.get("min_confs")
     addrs = get_addrs(cfg_chain)
 
     httpc = http or HttpClient(logger=log)
@@ -52,7 +52,7 @@ def fetch_balances(cfg_chain: dict, *, logger=None, http: Optional[HttpClient]=N
 
     qty_btc = sats_to_btc(total_sats)
     balances = {SYMBOL: qty_btc}
-    pricing = cfg_chain.get("assets", [{}])[0].get("pricing", "auto")
+    pricing = (cfg_chain.get("assets") or [{}])[0].get("pricing", "auto")
     meta = {SYMBOL: {"pricing": pricing, "coingecko_id": COINGECKO_ID, "decimals": DECIMALS}}
     log.info("btc_balances_done", extra={
         "job":"etl-api",

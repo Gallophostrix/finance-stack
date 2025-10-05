@@ -23,8 +23,18 @@ def parse_iso_utc_to_date(s: str) -> date:
 
 def get_addrs(cfg_chain: dict) -> List[str]:
     """
-    Fetch all the BTC addresses from the YAML and cull them.
+    Extract all BTC addresses from the YAML.
     """
-    # Direct culling
-    addrs = [a.strip() for a in (cfg_chain.get("addresses") or []) if a and a.strip()]
+    accounts = cfg_chain.get("accounts") or []
+    addrs: List[str] = []
+
+    for acc in accounts:
+        if not isinstance(acc, dict):
+            continue
+        if acc.get("type") == "address":
+            addr = str(acc.get("id", "")).strip()
+            if addr:
+                addrs.append(addr)
+
+    # Remove duplicates while preserving order
     return list(dict.fromkeys(addrs))

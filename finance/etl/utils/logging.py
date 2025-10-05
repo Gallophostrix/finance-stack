@@ -1,5 +1,5 @@
 # finance/etl/utils/logging.py
-import json, logging, sys, time
+import json, logging, sys
 from datetime import datetime, timezone
 
 class JsonFormatter(logging.Formatter):

@@ -49,12 +49,12 @@ def batch(it: Iterable[Any], n: int) -> Iterable[List[Any]]:
 def whitelist_from_cfg(cfg_chain: dict) -> Dict[str, dict]:
     wl: Dict[str, dict] = {}
     for a in cfg_chain.get("assets", []) or []:
-        sym = (a.get("symbol") or "").upper()
-        wl[sym] = {
+        code = (a.get("symbol") or "").upper()
+        wl[code] = {
             "pricing": a.get("pricing", "auto"),
             "coingecko_id": a.get("coingecko_id", ""),
             "policy_id": a.get("policy_id") or None,
-            "decimals": int(a.get("decimals", ADA_DECIMALS if sym=="ADA" else 0)),
+            "decimals": int(a.get("decimals", ADA_DECIMALS if code=="ADA" else 0)),
         }
     return wl
 
@@ -71,17 +71,17 @@ def resolve_cnt_symbol(policy_id: str, asset_name_hex: str, wl: Dict[str, dict])
     """Resolve CNT asset symbol and decimals from whitelist."""
     decoded = decode_asset_name(asset_name_hex)
     # 1) Prioritise policy_id match
-    for sym, info in wl.items():
-        if sym == "ADA":
+    for code, info in wl.items():
+        if code == "ADA":
             continue
         pid = info.get("policy_id")
         if pid and pid == policy_id:
-            return sym, int(info.get("decimals", 0))
+            return code, int(info.get("decimals", 0))
     # 2) fallback on decoded name match
     if decoded:
-        for sym, info in wl.items():
-            if sym == "ADA":
+        for code, info in wl.items():
+            if code == "ADA":
                 continue
-            if decoded.upper() == sym.upper():
-                return sym, int(info.get("decimals", 0))
+            if decoded.upper() == code.upper():
+                return code, int(info.get("decimals", 0))
     return "", 0
