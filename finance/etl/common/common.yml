@@ -1,0 +1,6 @@
+as_of: "auto"        # "auto" = start of current month
+base_quote: "EUR"
+
+fx:
+  source: "ecb"
+  pair: "USD/EUR"

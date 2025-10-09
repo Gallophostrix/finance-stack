@@ -59,7 +59,7 @@ CREATE TABLE IF NOT EXISTS core.flows_native (
   asset          TEXT   NOT NULL REFERENCES core.assets(asset_code) ON UPDATE CASCADE ON DELETE RESTRICT,
   amount_native  NUMERIC(38,18) NOT NULL CHECK (amount_native > 0),
   kind           TEXT   NOT NULL CHECK (kind IN ('in','out','fee','interest')),
-  origin_ref     TEXT,                                           -- tx_hash / booking_id...
+  origin_ref     TEXT                                            -- tx_hash / booking_id...
 );
 
 CREATE INDEX IF NOT EXISTS idx_flows_native_account_date ON core.flows_native (account_id, d);

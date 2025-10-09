@@ -57,8 +57,8 @@ def fetch_balances(
             amt_btc = sats_to_btc(sats)
             rows.append({
                 "account_type": "address",
-                "external_id": addr,
-                "asset": ASSET_CODE,
+                "external_identifier": addr,
+                "asset_code": ASSET_CODE,
                 "amount_native": amt_btc,
             })
 
@@ -67,7 +67,7 @@ def fetch_balances(
                 extra={
                     "job": "etl-api",
                     "step": "fetch_balances",
-                    "asset": ASSET_CODE,
+                    "asset_code": ASSET_CODE,
                     "addr_tail": addr[-6:],
                     "sats": sats
                 },
@@ -84,7 +84,7 @@ def fetch_balances(
         extra={
             "job": "etl-api",
             "step": "aggregate",
-            "asset": ASSET_CODE,
+            "asset_code": ASSET_CODE,
             "qty_btc_total": str(sats_to_btc(total_sats)),
             "accounts": len(rows),
         },

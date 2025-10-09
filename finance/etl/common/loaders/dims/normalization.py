@@ -5,7 +5,7 @@ from typing import Optional
 # ----- Allowed vocab -----
 ALLOWED_PROVIDER_TYPES = {"blockchain", "bank", "broker", "cex", "platform"}
 ALLOWED_ACCOUNT_TYPES = {"address", "stake_key", "iban", "broker_account", "other"}
-ALLOWED_GROUPS = {"Wallet", "CEX", "PEA", "AV", "Bank"}
+ALLOWED_GROUPS = {"wallet", "CEX", "PEA", "AV", "Bank"}
 ALLOWED_ASSET_CLASSES = {"crypto", "actions", "epargne"}
 
 # ----- Defaults / heuristics -----
