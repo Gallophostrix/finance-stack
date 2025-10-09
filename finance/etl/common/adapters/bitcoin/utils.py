@@ -4,9 +4,7 @@ from decimal import Decimal
 from datetime import datetime, date
 from typing import List
 
-CATEGORY = "tokens"
-SUBCATEGORY = "Wallet"
-SYMBOL = "BTC"
+ASSET_CODE = "BTC"
 COINGECKO_ID = "bitcoin"
 DEFAULT_BASE = "https://api.blockcypher.com/v1/btc/main"
 DECIMALS = 8

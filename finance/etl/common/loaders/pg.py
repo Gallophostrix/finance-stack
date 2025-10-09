@@ -6,7 +6,7 @@ from decimal import Decimal
 from datetime import date, datetime
 import itertools
 
-from etl.utils.db import get_conn  # <- your existing DB connector (psycopg2/psycopg)
+from etl.utils.db import make_dsn_from_env, connect_with_retry
 from etl.utils.logging import setup_json_logging
 
 ALLOWED_KINDS = {"in", "out", "fee", "interest"}
@@ -138,8 +138,18 @@ def upsert_balances_native(
 
     own_conn = None
     try:
-        own_conn = get_conn() if conn is None else None
+        own_conn = connect_with_retry(make_dsn_from_env()) if conn is None else None
         cx = conn or own_conn
+        if cx is None:
+            log.error(
+                "db_connection_failed",
+                extra={
+                    "step": "upsert_balances",
+                    "dsn": make_dsn_from_env()
+                }
+            )
+            raise RuntimeError("Database connection could not be established")
+        assert cx is not None
         with cx:
             with cx.cursor() as cur:
                 sql = """
@@ -222,8 +232,18 @@ def upsert_flows_native(
 
     own_conn = None
     try:
-        own_conn = get_conn() if conn is None else None
+        own_conn = connect_with_retry(make_dsn_from_env()) if conn is None else None
         cx = conn or own_conn
+        if cx is None:
+            log.error(
+                "db_connection_failed",
+                extra={
+                    "step": "upsert_flows",
+                    "dsn": make_dsn_from_env()
+                }
+            )
+            raise RuntimeError("Database connection could not be established")
+        assert cx is not None
         with cx:
             with cx.cursor() as cur:
                 sql = """

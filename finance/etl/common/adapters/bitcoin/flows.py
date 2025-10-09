@@ -5,10 +5,8 @@ from typing import List, Optional
 
 from etl.utils.logging import setup_json_logging
 from etl.utils.http import HttpClient
-from .api import SYMBOL
+from .api import ASSET_CODE
 from .utils import (
-    CATEGORY,
-    SUBCATEGORY,
     DEFAULT_BASE,
     sats_to_btc,
     get_addrs,
@@ -63,7 +61,7 @@ def detect_flows(cfg_chain: dict, start_date: date, end_date: date, *,
                             extra={
                                 "job":"etl-api",
                                 "step":"flows_page",
-                                "asset":SYMBOL,
+                                "asset":ASSET_CODE,
                                 "addr_tail": addr[-6:],
                                 "page_limit":page_limit,
                                 "oldest_on_page":str(oldest),
@@ -83,9 +81,9 @@ def detect_flows(cfg_chain: dict, start_date: date, end_date: date, *,
 
             flows.append({
                 "d": d,
-                "category": CATEGORY,
-                "subcategory": SUBCATEGORY,
-                "asset": SYMBOL,
+                "account_type": "address",
+                "external_id": addr,
+                'asset': ASSET_CODE,
                 "amount_native": amt,
                 "kind": kind,
                 "tx_hash": tx.get("tx_hash"),
@@ -95,7 +93,7 @@ def detect_flows(cfg_chain: dict, start_date: date, end_date: date, *,
              extra={
                 "job":"etl-api",
                 "step":"flows",
-                "asset":SYMBOL,
+                "asset":ASSET_CODE,
                 "rows": len(flows)
             })
 

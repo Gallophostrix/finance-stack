@@ -47,9 +47,13 @@ def batch(it: Iterable[Any], n: int) -> Iterable[List[Any]]:
         yield buf
 
 def whitelist_from_cfg(cfg_chain: dict) -> Dict[str, dict]:
+    """
+    Build a whitelist mapping ASSET_CODE -> pricing/meta info
+    from the chain YAML.
+    """
     wl: Dict[str, dict] = {}
     for a in cfg_chain.get("assets", []) or []:
-        code = (a.get("symbol") or "").upper()
+        code = (a.get("code") or "").upper()
         wl[code] = {
             "pricing": a.get("pricing", "auto"),
             "coingecko_id": a.get("coingecko_id", ""),

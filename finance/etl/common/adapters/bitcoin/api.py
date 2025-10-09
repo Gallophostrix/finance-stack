@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any, Dict, Optional
 from etl.utils.http import HttpClient
 
-SYMBOL = "BTC"
+ASSET_CODE = "BTC"
 
 def addr_payload(http: HttpClient, base_url: str, addr: str, token: Optional[str], min_confs: Optional[int]) -> Dict[str, Any]:
     """
@@ -31,7 +31,7 @@ def addr_payload(http: HttpClient, base_url: str, addr: str, token: Optional[str
                 extra={
                     "job": "etl-adapter",
                     "step": "addr_payload",
-                    "asset": SYMBOL
+                    "asset": ASSET_CODE
                 }
             )
         raise ValueError("BTC address is empty")
@@ -53,7 +53,7 @@ def addr_payload(http: HttpClient, base_url: str, addr: str, token: Optional[str
                 extra={
                     "job":"etl-adapter",
                     "step":"addr_payload",
-                    "asset":SYMBOL,
+                    "asset":ASSET_CODE,
                     "addr_tail": addr[-6:]
                 }
             )
