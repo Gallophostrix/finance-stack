@@ -5,7 +5,13 @@ from etl.utils.http import HttpClient
 
 ASSET_CODE = "BTC"
 
-def addr_payload(http: HttpClient, base_url: str, addr: str, token: Optional[str], min_confs: Optional[int]) -> Dict[str, Any]:
+def addr_payload(
+        http: HttpClient,
+        base_url: str,
+        addr: str,
+        token: Optional[str],
+        min_confs: Optional[int]
+) -> Dict[str, Any]:
     """
     Query the BlockCypher API for a given Bitcoin address.
 
