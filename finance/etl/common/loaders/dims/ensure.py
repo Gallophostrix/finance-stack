@@ -5,7 +5,7 @@ from typing import Dict, Tuple, List
 
 from psycopg2.extensions import connection as PGConnection  # type: ignore
 
-from etl.utils.db import make_dsn_from_env, connect_with_retry
+from etl.utils.db import connect_with_retry
 from etl.utils.logging import setup_json_logging
 
 from .parsers import load_yaml, parse_provider, parse_assets, parse_accounts
@@ -88,7 +88,7 @@ def ensure_from_dir(
     resolver: Dict[Tuple[str, str, str], int] = {}
     total_providers = total_assets = total_accounts = 0
 
-    _dsn = dsn or make_dsn_from_env()
+    _dsn = dsn
     conn: PGConnection = connect_with_retry(_dsn)
     try:
         with conn:

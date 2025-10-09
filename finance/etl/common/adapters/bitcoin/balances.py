@@ -1,6 +1,5 @@
 # etl/common/adapters/bitcoin/balances.py
 from __future__ import annotations
-from decimal import Decimal
 from typing import Dict, Tuple, Optional, List
 
 from etl.utils.logging import setup_json_logging

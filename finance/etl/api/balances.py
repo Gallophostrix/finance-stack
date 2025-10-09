@@ -1,15 +1,15 @@
 # etl/api/balances.py
 from __future__ import annotations
-import argparse
 from datetime import date
 from pathlib import Path
-from typing import Tuple, List, Iterable, Optional, Any
+from typing import Iterable, Optional, Any, List, Tuple
+import argparse
 
 from decimal import Decimal
 from psycopg2.extensions import connection as PGConnection  # type: ignore
 
 from etl.utils.logging import setup_json_logging
-from etl.utils.db import make_dsn_from_env, connect_with_retry
+from etl.utils.db import connect_with_retry
 from etl.utils.dates import today_utc_date
 
 # dims loader (resolver + DB sync)
@@ -54,7 +54,7 @@ def run(
         assets_dir: str,
         as_of: Optional[date] = None,
         *,
-        dsn: str | None = None
+        dsn: Optional[str] = None
 ) -> int:
     """
     Orchestrate balances ingestion for all providers described in assets_dir.
@@ -67,7 +67,16 @@ def run(
     resolver = ensure_from_dir(assets_dir, logger=log)
 
     # 2) Open DB connection once
-    conn: PGConnection = connect_with_retry(dsn or make_dsn_from_env())
+    conn: PGConnection = connect_with_retry(dsn)
+    if conn is None:
+        log.error(
+            "dsn_db_connection_failed",
+            extra={
+                "step": "balances",
+                "dsn": dsn
+            }
+        )
+        return 0
 
     total_rows = 0
     try:
@@ -245,10 +254,11 @@ def main():
     ap = argparse.ArgumentParser(description="ETL - Balances Orchestrator")
     ap.add_argument("assets_dir", help="Directory containing provider YAML files (e.g., finance/assets)")
     ap.add_argument("--as-of", help="Cut date (YYYY-MM-DD). Defaults to today UTC.", default=None)
+    ap.add_argument("--dsn", help="PostgreSQL DSN (overrides PG_DSN env var)", default=None)
     args = ap.parse_args()
 
     as_of = date.fromisoformat(args.as_of) if args.as_of else None
-    run(args.assets_dir, as_of=as_of)
+    run(args.assets_dir, as_of=as_of, dsn=args.dsn)
 
 
 if __name__ == "__main__":

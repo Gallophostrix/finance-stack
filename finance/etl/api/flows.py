@@ -9,8 +9,8 @@ from decimal import Decimal
 from psycopg2.extensions import connection as PGConnection  # type: ignore
 
 from etl.utils.logging import setup_json_logging
-from etl.utils.db import make_dsn_from_env, connect_with_retry
-from etl.utils.dates import today_utc_date
+from etl.utils.db import connect_with_retry
+from etl.utils.dates import today_utc_date, last_month_utc_date
 
 from etl.common.loaders.dims.ensure import ensure_from_dir
 from etl.common.loaders.dims.parsers import load_yaml, parse_provider
@@ -55,17 +55,26 @@ def run(
     """
     log = setup_json_logging()
 
-    # By default window: current month (UTC) if not provided
+    # By default window: 1st of last month until now (UTC) if not provided
     today = today_utc_date()
     if start_date is None or end_date is None:
-        start_date = start_date or today.replace(day=1)
+        start_date = start_date or last_month_utc_date()
         end_date = end_date or today
 
     # 1) Resolve accounts (dims)
     resolver = ensure_from_dir(assets_dir, logger=log)
 
     # 2) DB
-    conn: PGConnection = connect_with_retry(dsn or make_dsn_from_env())
+    conn: PGConnection = connect_with_retry(dsn)
+    if conn is None:
+        log.error(
+            "dsn_db_connection_failed",
+            extra={
+                "step": "flows",
+                "dsn": dsn
+            }
+        )
+        return 0
 
     total_rows_written = 0
 
@@ -237,11 +246,12 @@ def main():
     ap.add_argument("assets_dir", help="Directory with provider YAML files (e.g., finance/assets)")
     ap.add_argument("--start", help="Start date YYYY-MM-DD (inclusive)")
     ap.add_argument("--end", help="End date YYYY-MM-DD (inclusive)")
+    ap.add_argument("--dsn", help="PostgreSQL DSN (overrides PG_DSN env var)", default=None)
     args = ap.parse_args()
 
     start = date.fromisoformat(args.start) if args.start else None
     end = date.fromisoformat(args.end) if args.end else None
-    run(args.assets_dir, start_date=start, end_date=end)
+    run(args.assets_dir, start_date=start, end_date=end, dsn=args.dsn)
 
 
 if __name__ == "__main__":

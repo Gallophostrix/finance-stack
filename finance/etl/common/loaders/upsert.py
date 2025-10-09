@@ -4,7 +4,7 @@ from typing import Iterable, List, Tuple, Optional
 from datetime import date
 from decimal import Decimal
 
-from psycopg2.extensions import connection as PGConnection, cursor  # type: ignore
+from psycopg2.extensions import connection as PGConnection # type: ignore
 
 from etl.utils.logging import setup_json_logging
 from .batching import bulk_upsert_balances, bulk_upsert_flows
