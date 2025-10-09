@@ -3,7 +3,7 @@ services:
     image: grafana/loki:latest
     container_name: loki
     ports:
-      - "127.0.0.1:3100:3100"  # lo access
+      - "127.0.0.1:3100:3100" # lo access
     volumes:
       - ./loki:/etc/loki
       - loki-data:/loki
@@ -26,7 +26,7 @@ services:
     networks:
       monitoring:
     ports:
-      - "127.0.0.1:9090:9090"    # lo access
+      - "127.0.0.1:9090:9090" # lo access
     restart: unless-stopped
 
   alloy:
@@ -51,7 +51,7 @@ services:
       - --storage.path=/var/lib/alloy/data
       - /etc/alloy/config.alloy
     ports:
-      - "127.0.0.1:12345:12345"  # lo access
+      - "127.0.0.1:12345:12345" # lo access
     networks:
       monitoring:
 
@@ -59,7 +59,7 @@ services:
     image: grafana/grafana:latest
     container_name: grafana
     ports:
-      - "127.0.0.1:3000:3000"  # lo access
+      - "127.0.0.1:3000:3000" # lo access
     environment:
       - GF_PATHS_PROVISIONING=/etc/grafana/provisioning
       - GF_SERVER_ROOT_URL=https://grafana.lan
@@ -103,7 +103,7 @@ services:
     networks:
       monitoring:
 
-  finance-etl-mwr:
+  finance-etl-calc:
     image: python:3.11-slim
     container_name: finance-etl-mwr
     depends_on: [finance-db]
@@ -129,32 +129,32 @@ services:
     networks:
       monitoring:
 
-  finance-etl-auto:
-    image: python:3.11-slim
-    container_name: finance-etl-auto
+  finance-etl-api:
+    build:
+      context: ./finance
+      dockerfile: etl/Dockerfile
+    image: finance-etl:latest
+    container_name: finance-etl-api
     depends_on: [finance-db]
     working_dir: /app
     environment:
       TZ: Europe/Paris
-      DB_HOST: finance-db
-      DB_PORT: 5432
-      DB_NAME: finance
-      DB_USER: finance
       DB_PASS_FILE: /run/secrets/finance_pgpwd
     volumes:
-      - ./finance/scripts:/app
-      - ./finance/assets:/assets
+      - ./finance/assets:/app/assets:ro
+      - ./finance/requirements:/app/requirements:ro
     secrets:
       - finance_pgpwd
     entrypoint: >
       bash -lc '
       set -euo pipefail;
-      pip install -r auto/requirements_auto.txt;
       export DB_PASS="$(cat "$${DB_PASS_FILE}")";
-      python auto/etl_auto.py
+      export PG_DSN="postgresql://finance:$${DB_PASS}@finance-db:5432/finance";
+      python -m etl.api.balances /app/assets --dsn "$${PG_DSN}";
       '
     networks:
       monitoring:
+      #python -m etl.api.flows /app/assets --start 2025-01-01 --dsn "$${PG_DSN}";
 
 networks:
   monitoring:

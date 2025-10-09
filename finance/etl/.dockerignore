@@ -1,0 +1,23 @@
+# Python cache files
+__pycache__/
+*.py[cod]
+
+# virtual environments
+.venv/
+venv/
+
+# IDE settings
+.git/
+.gitignore
+.DS_Store
+
+# tests and artifacts
+tests/
+dist/
+build/
+.coverage
+pytest_cache/
+htmlcov/
+
+# local configs
+.env
