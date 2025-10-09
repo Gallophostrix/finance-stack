@@ -142,6 +142,7 @@ services:
       DB_PASS_FILE: /run/secrets/finance_pgpwd
     volumes:
       - ./finance/assets:/app/assets:ro
+      - ./finance/requirements:/app/requirements:ro
     secrets:
       - finance_pgpwd
     entrypoint: >
@@ -150,10 +151,10 @@ services:
       export DB_PASS="$(cat "$${DB_PASS_FILE}")";
       export PG_DSN="postgresql://finance:$${DB_PASS}@finance-db:5432/finance";
       python -m etl.api.balances /app/assets --dsn "$${PG_DSN}";
-      python -m etl.api.flows /app/assets --dsn "$${PG_DSN}";
       '
     networks:
       monitoring:
+      #python -m etl.api.flows /app/assets --start 2025-01-01 --dsn "$${PG_DSN}";
 
 networks:
   monitoring:

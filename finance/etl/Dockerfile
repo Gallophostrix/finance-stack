@@ -1,6 +1,11 @@
 # finance/etl/Dockerfile
 FROM python:3.11.9-slim
 
+LABEL org.opencontainers.image.title="Finance ETL"
+LABEL org.opencontainers.image.version="1.0.0"
+LABEL org.opencontainers.image.authors="Mikhaïl Duong"
+LABEL org.opencontainers.image.source="https://https://github.com/Gallophostrix/finance-stack"
+
 # 1) Clean Python runtime, providing logs
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
