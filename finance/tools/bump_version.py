@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 import re, sys, pathlib
-FILE = pathlib.Path("finance/etl/__init__.py")
+FILE = pathlib.Path("etl/__init__.py")
 SRC = FILE.read_text(encoding="utf-8")
 m = re.search(r'__version__\s*=\s*"([^"]+)"', SRC)
 if not m:
