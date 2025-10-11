@@ -8,6 +8,7 @@ loki/
 *.txt
 !finance/etl/requirements/*.txt
 .env
+.venv/
 finance/assets/*
 !finance/assets/example.yml
 

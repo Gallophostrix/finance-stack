@@ -1,0 +1,29 @@
+name: CI (monorepo)
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: finance
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-${{ hashFiles('finance/requirements/*.txt') }}
+      - name: Install deps + ruff
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements/base.txt -r requirements/api.txt -r requirements/calc.txt
+          pip install ruff
+      - name: Ruff
+        run: ruff check etl
