@@ -38,11 +38,12 @@ jobs:
       - name: Build & push
         shell: bash
         run: |
+          OWNER="$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')"
           VERSION="${{ steps.v.outputs.version }}"
           docker build \
             --build-arg VERSION="$VERSION" \
-            -t ghcr.io/${{ github.repository_owner }}/finance-etl:latest \
-            -t ghcr.io/${{ github.repository_owner }}/finance-etl:${VERSION} \
+            -t ghcr.io/$OWNER/finance-etl:latest \
+            -t ghcr.io/$OWNER/finance-etl:$VERSION \
             -f finance/etl/Dockerfile finance
-          docker push ghcr.io/${{ github.repository_owner }}/finance-etl:latest
-          docker push ghcr.io/${{ github.repository_owner }}/finance-etl:${VERSION}
+          docker push ghcr.io/$OWNER/finance-etl:latest
+          docker push ghcr.io/$OWNER/finance-etl:$VERSION
