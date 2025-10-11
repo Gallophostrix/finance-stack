@@ -3,7 +3,7 @@ name: CI (monorepo)
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [master]
 
 jobs:
   # Lint Python (ETL)
