@@ -151,7 +151,7 @@ services:
       '
     networks:
       monitoring:
-      #python -m etl.api.flows /app/assets --start 2025-01-01 --dsn "$${PG_DSN}";
+        #python -m etl.api.flows /app/assets --start 2025-01-01 --dsn "$${PG_DSN}";
 
 networks:
   monitoring:
