@@ -130,7 +130,7 @@ services:
       monitoring:
 
   finance-etl-api:
-    image: ghcr.io/gallophostrix/finance-stack/finance-etl:latest
+    image: ghcr.io/gallophostrix/finance-stack/finance/etl:latest
     container_name: finance-etl-api
     depends_on: [finance-db]
     working_dir: /app
