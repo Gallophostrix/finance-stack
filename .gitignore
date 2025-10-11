@@ -25,3 +25,6 @@ finance/sql/*.bak
 # IDE / OS
 .vscode/
 .DS_Store
+
+
+finance/etl/calc/

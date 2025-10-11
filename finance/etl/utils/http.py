@@ -1,6 +1,7 @@
 # etl/utils/http.py
 from __future__ import annotations
-import time, random
+import time
+import random
 from email.utils import parsedate_to_datetime
 from typing import Any, Dict, Optional, Tuple
 import requests

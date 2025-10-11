@@ -3,7 +3,8 @@ from __future__ import annotations
 from decimal import Decimal
 from datetime import datetime, timezone, date
 from typing import Any, Dict, Iterable, List, Tuple, Optional
-import json, binascii
+import json
+import binascii
 
 ADA_DECIMALS = 6
 ADA_KEY = ("ADA", None, None)
@@ -42,7 +43,8 @@ def batch(it: Iterable[Any], n: int) -> Iterable[List[Any]]:
     for x in it:
         buf.append(x)
         if len(buf) == n:
-            yield buf; buf = []
+            yield buf
+            buf = []
     if buf:
         yield buf
 

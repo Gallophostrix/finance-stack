@@ -52,7 +52,7 @@ def addr_payload(
 
     try:
         return http.get_json(url, params=params)
-    except Exception as e:
+    except Exception:
         if hasattr(http, "log") and http.log:
             http.log.exception(
                 "btc_addr_payload_error",

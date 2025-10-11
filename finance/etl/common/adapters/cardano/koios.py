@@ -23,7 +23,7 @@ class KoiosClient:
         url = self._url(endpoint)
         try:
             return self.http.post_json(url, payload=payload)
-        except Exception as e:
+        except Exception:
             # Direct lower-level logging in KoiosClient
             if hasattr(self.http, "log") and self.http.log:
                 self.http.log.exception(
@@ -46,7 +46,7 @@ class KoiosClient:
         url = self._url(endpoint)
         try:
             return self.http.get_json(url, params=params)
-        except Exception as e:
+        except Exception:
             if hasattr(self.http, "log") and self.http.log:
                 self.http.log.exception(
                     "koios_get_error",

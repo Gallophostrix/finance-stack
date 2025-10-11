@@ -1,6 +1,7 @@
 # finance/etl/utils/db.py
 from __future__ import annotations
-import os, time
+import os
+import time
 from typing import Optional
 import psycopg2 # type: ignore
 from psycopg2.extensions import connection as PGConnection # type: ignore

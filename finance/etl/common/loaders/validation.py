@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
-from typing import Iterable, List, Tuple, Optional, Sequence, Any, Dict, Set
+from typing import Iterable, List, Tuple, Optional, Any, Dict, Set
 
 from etl.utils.dates import today_utc_date
 
