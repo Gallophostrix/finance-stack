@@ -18,14 +18,15 @@ jobs:
       - name: Extract version
         id: v
         run: |
-          python - <<'PY'
-          from pathlib import Path
-          import re
-          m=re.search(r'__version__\s*=\s*"([^"]+)"', Path('finance/etl/__init__.py').read_text())
-          print(f"version={m.group(1)}")
+              version="$(python - <<'PY'
+          from pathlib import Path, re
+          m = re.search(r'__version__\s*=\s*"([^"]+)"', Path('finance/etl/__init__.py').read_text())
+          print(m.group(1) if m else "")
           PY
-          | tee /tmp/version.txt
-          echo "::set-output name=version::$(cut -d= -f2 /tmp/version.txt)"
+          )"
+              echo "version=$version"
+              echo "version=$version" | tee /tmp/version.txt >/dev/null
+              echo "version=$version" >> "$GITHUB_OUTPUT"
         shell: bash
 
       - uses: docker/setup-buildx-action@v3
