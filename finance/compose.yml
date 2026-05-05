@@ -1,0 +1,31 @@
+services:
+    finance-db:
+        image: postgres:16
+        container_name: finance-db
+        restart: unless-stopped
+        environment:
+            TZ: Europe/Paris
+            POSTGRES_DB: finance
+            POSTGRES_USER: finance
+            POSTGRES_PASSWORD_FILE: /run/secrets/finance_pgpwd
+            PGDATA: /var/lib/postgresql/data/pgdata
+        volumes:
+            - finance-db:/var/lib/postgresql/data
+            - ./sql:/docker-entrypoint-initdb.d:ro
+            - ../secrets/postgres_pwd.txt:/run/secrets/finance_pgpwd:ro
+        ports:
+            - "127.0.0.1:5432:5432"
+        networks:
+            - monitoring
+        healthcheck:
+            test: ["CMD-SHELL", "pg_isready -U finance -d finance"]
+            interval: 10s
+            timeout: 5s
+            retries: 5
+
+networks:
+    monitoring:
+        external: true
+
+volumes:
+    finance-db:

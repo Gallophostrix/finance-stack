@@ -26,5 +26,7 @@ finance/sql/*.bak
 .vscode/
 .DS_Store
 
+# Cache
+.ruff_cache/
 
 finance/etl/calc/

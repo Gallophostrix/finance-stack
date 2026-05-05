@@ -34,14 +34,38 @@ CREATE INDEX IF NOT EXISTS idx_flows_eur_asset_date   ON derived.flows_eur (asse
 
 -- Performance results (e.g. MWR/TWR) per period
 -- Note: one single simple table; we encode the "dimension" via 'level' and fill unused fields with ''/0.
-CREATE TABLE IF NOT EXISTS derived.mwr (
-  as_of       DATE NOT NULL,                                         -- end of period (month)
-  level       TEXT NOT NULL CHECK (level IN ('asset','account','portfolio','category')),
-  category    TEXT NOT NULL DEFAULT '',                               -- if level='category', else ''
-  asset       TEXT NOT NULL DEFAULT '',                               -- if level='asset', else ''
-  account_id  BIGINT NOT NULL DEFAULT 0,                              -- if level='account', else 0
-  irr         NUMERIC(18,8),                                          -- ex: 0.01234567 = 1.234567%
-  PRIMARY KEY (as_of, level, category, asset, account_id)
+CREATE TABLE IF NOT EXISTS derived.returns_itd (
+  as_of       DATE NOT NULL,      -- snapshot date (e.g. start of current month)
+  metric      TEXT NOT NULL
+              CHECK (metric IN ('twr','mwr')),
+  level       TEXT NOT NULL
+              CHECK (level IN ('asset','category')),
+
+  category    TEXT NOT NULL,       -- always set
+  asset       TEXT NOT NULL DEFAULT '',  -- only if level='asset'
+
+  value       NUMERIC(18,8),       -- ratio (0.01 = +1%)
+  computed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+  -- Semantic consistency
+  CHECK (
+    (level = 'category' AND asset = '') OR
+    (level = 'asset'    AND asset <> '')
+  ),
+
+  -- Business rules (documented, enforced in code)
+  -- level='asset'    → metric='twr'
+  -- level='category' → metric IN ('twr','mwr')
+
+  PRIMARY KEY (as_of, metric, level, category, asset)
 );
 
-CREATE INDEX IF NOT EXISTS idx_mwr_by_level ON derived.mwr (level, as_of);
+CREATE INDEX IF NOT EXISTS idx_returns_itd_by_metric_level
+  ON derived.returns_itd (metric, level, as_of);
+
+CREATE INDEX IF NOT EXISTS idx_returns_itd_category
+  ON derived.returns_itd (category, as_of);
+
+CREATE INDEX IF NOT EXISTS idx_returns_itd_asset
+  ON derived.returns_itd (asset, as_of)
+  WHERE level = 'asset';

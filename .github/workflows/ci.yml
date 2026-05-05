@@ -63,7 +63,7 @@ jobs:
         run: |
           hadolint finance/etl/Dockerfile || true
 
-  # Smoke test SQL : applique les fichiers d’init sur un Postgres éphémère
+  # Smoke test SQL : applies the init_*.sql files to a test Postgres instance
   sql:
     runs-on: ubuntu-latest
     services:
