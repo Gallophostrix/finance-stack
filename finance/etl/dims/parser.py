@@ -4,7 +4,7 @@ No DB interaction here — pure parsing.
 
 Expected YAML structure:
   provider:
-    type: blockchain | bank | broker | cex | other
+    type: blockchain | bank | broker | cex | self | other
     name: str
   assets:
     - code: str
@@ -13,9 +13,9 @@ Expected YAML structure:
       coingecko_id: str (optional)
       is_active: bool
   accounts:
-    - type: address | stake_key | iban | broker_account | other
+    - type: address | stake_key | iban | broker_account | property | other
       id: str
-      group: wallet | CEX | PEA | AV | Bank
+      group: wallet | CEX | PEA | AV | Bank | Immo
       label: str
 """
 
@@ -28,10 +28,17 @@ import yaml
 
 log = logging.getLogger("root")
 
-VALID_PROVIDER_TYPES = {"blockchain", "bank", "broker", "cex", "other"}
+VALID_PROVIDER_TYPES = {"blockchain", "bank", "broker", "cex", "self", "other"}
 VALID_ASSET_CLASSES = {"crypto", "actions", "epargne", "immo"}
-VALID_ACCOUNT_TYPES = {"address", "stake_key", "iban", "broker_account", "other"}
-VALID_GROUPS = {"wallet", "CEX", "PEA", "AV", "Bank"}
+VALID_ACCOUNT_TYPES = {
+    "address",
+    "stake_key",
+    "iban",
+    "broker_account",
+    "property",
+    "other",
+}
+VALID_GROUPS = {"wallet", "CEX", "PEA", "AV", "Bank", "Immo"}
 
 
 @dataclass
