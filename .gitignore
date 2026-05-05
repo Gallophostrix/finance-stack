@@ -6,11 +6,12 @@ loki/
 
 # Secrets & env
 *.txt
-!finance/requirements/*.txt
 .env
 .venv/
-finance/assets/*
-!finance/assets/example.yml
+
+# Data
+finance/assets/
+finance/data/
 
 # DB data / volumes (on ne versionne pas les données)
 finance/sql/*.dump
@@ -28,5 +29,3 @@ finance/sql/*.bak
 
 # Cache
 .ruff_cache/
-
-finance/etl/calc/
