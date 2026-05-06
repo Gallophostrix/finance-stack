@@ -10,7 +10,7 @@ Usage:
 import argparse
 import sys
 
-from etl.api.coingecko import load_api_key, run
+from etl.api.coingecko import load_api_key, run, seed_manual_prices
 from etl.common.db import connect
 from etl.common.logging import setup_logging
 
@@ -53,6 +53,7 @@ def main() -> None:
 
     conn = connect()
     try:
+        seed_manual_prices(conn)
         written = run(conn, api_key)
         log.info("fetch_prices_done", extra={"rows": written})
     finally:

@@ -192,6 +192,39 @@ def _fetch_range(
     return {d: per_day[d] for d in dates if d in per_day}
 
 
+# ---------- Manual fetcher ----------
+
+
+def seed_manual_prices(conn: PGConnection) -> int:
+    """
+    Insert price_eur = 1.0 for all assets without coingecko_id
+    (epargne, actions ETF, immo) for all dates present in balances/flows
+    but missing from market.prices_eur.
+    """
+    sql = """
+    INSERT INTO market.prices_eur (asset, d, source, price_eur, observed_at)
+    SELECT DISTINCT n.asset, n.d, 'manual_euro', 1.0, NOW()
+    FROM (
+        SELECT asset, d FROM core.balances_native
+        UNION
+        SELECT asset, d FROM core.flows_native
+    ) n
+    JOIN core.assets a ON a.asset_code = n.asset
+    LEFT JOIN market.prices_eur p
+        ON p.asset = n.asset AND p.d = n.d AND p.source = 'manual_euro'
+    WHERE a.coingecko_id IS NULL
+      AND a.is_active = TRUE
+      AND p.asset IS NULL
+    ON CONFLICT (asset, d, source) DO NOTHING
+    """
+    with conn.cursor() as cur:
+        cur.execute(sql)
+        count = cur.rowcount
+    conn.commit()
+    log.info("manual_prices_seeded", extra={"rows": count})
+    return count
+
+
 # ---------- Orchestrator ----------
 
 
