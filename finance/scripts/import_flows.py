@@ -7,7 +7,7 @@ CSV format:
   "Lucya Cardif AV account",WORLD,500.00,in,virement-jan
   "Bourse Direct PEA account",WORLD,200.00,out,retrait-jan
 
-  kind : in | out | fee | interest
+  kind : in | out | interest
   ref  : obligatoire — libellé libre (ou tx hash pour crypto)
 
 Usage:
@@ -27,7 +27,7 @@ from etl.common.logging import setup_logging
 
 log = setup_logging()
 
-VALID_KINDS = {"in", "out", "fee", "interest"}
+VALID_KINDS = {"in", "out", "interest"}
 
 
 # ---------- DB helpers ----------

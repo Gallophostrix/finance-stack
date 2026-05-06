@@ -58,7 +58,7 @@ CREATE TABLE IF NOT EXISTS core.flows_native (
   account_id     BIGINT NOT NULL REFERENCES core.accounts(account_id) ON UPDATE CASCADE ON DELETE RESTRICT,
   asset          TEXT   NOT NULL REFERENCES core.assets(asset_code) ON UPDATE CASCADE ON DELETE RESTRICT,
   amount_native  NUMERIC(38,18) NOT NULL CHECK (amount_native > 0),
-  kind           TEXT   NOT NULL CHECK (kind IN ('in','out','fee','interest')),
+  kind           TEXT   NOT NULL CHECK (kind IN ('in','out','interest')),
   origin_ref     TEXT                                            -- tx_hash / booking_id...
 );
 

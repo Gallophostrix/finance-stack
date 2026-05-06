@@ -136,3 +136,58 @@ class HttpClient:
 
     def __exit__(self, *_):
         self.close()
+
+    def post_json(
+        self,
+        url: str,
+        body: dict,
+        headers: Optional[dict] = None,
+    ) -> Any:
+        """POST JSON with rate limiting and retry."""
+        last_err: Optional[HttpError] = None
+
+        for attempt in range(1, self._max_retries + 1):
+            self._limiter.wait()
+            t0 = time.monotonic()
+            try:
+                resp = self._client.post(url, json=body, headers=headers)
+                duration_ms = int((time.monotonic() - t0) * 1000)
+
+                log.info(
+                    "http_request",
+                    extra={
+                        "method": "POST",
+                        "url": url,
+                        "status": resp.status_code,
+                        "duration_ms": duration_ms,
+                        "attempt": attempt,
+                    },
+                )
+
+                if resp.status_code < 300:
+                    return resp.json()
+
+                if resp.status_code in {429, 500, 502, 503, 504}:
+                    last_err = HttpError("POST", url, resp.status_code, resp.text)
+                    wait = 2**attempt
+                    log.warning(
+                        "http_retrying",
+                        extra={
+                            "status": resp.status_code,
+                            "attempt": attempt,
+                            "wait_s": wait,
+                        },
+                    )
+                    time.sleep(wait)
+                    continue
+
+                raise HttpError("POST", url, resp.status_code, resp.text)
+
+            except httpx.RequestError as e:
+                last_err = HttpError("POST", url, 0, str(e))
+                log.warning(
+                    "http_network_error", extra={"attempt": attempt, "error": str(e)}
+                )
+                time.sleep(2**attempt)
+
+        raise last_err or HttpError("POST", url, 0, "unknown error")

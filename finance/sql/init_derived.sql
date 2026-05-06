@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS derived.flows_eur (
   account_id        BIGINT NOT NULL REFERENCES core.accounts(account_id) ON UPDATE CASCADE ON DELETE RESTRICT,
   asset             TEXT   NOT NULL REFERENCES core.assets(asset_code)   ON UPDATE CASCADE ON DELETE RESTRICT,
   amount_eur        NUMERIC(20,2) NOT NULL,
-  kind              TEXT   NOT NULL CHECK (kind IN ('in','out','fee','interest')),
+  kind              TEXT   NOT NULL CHECK (kind IN ('in','out','interest')),
   source_price      TEXT   NOT NULL,           -- 'coingecko_eod' | 'legacy-seed' | ...
   observed_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
