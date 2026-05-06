@@ -5,9 +5,9 @@ prometheus/
 loki/
 
 # Secrets & env
-*.txt
+secrets
 .env
-.venv/
+
 
 # Data
 finance/assets/
