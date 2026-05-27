@@ -48,7 +48,6 @@ jobs:
                     infra/grafana \
                     infra/loki \
                     infra/prometheus \
-                    finance/assets
 
     # ── Smoke test SQL ──────────────────────────────────────────────────────────
     sql:

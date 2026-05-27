@@ -1,0 +1,269 @@
+logging {
+  level = "info"
+  format = "json"
+}
+
+discovery.docker "containers" {
+  host = "unix:///var/run/docker.sock"
+}
+
+discovery.relabel "logs_integrations_docker" {
+  targets = []
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "^/?(.+)$"
+    target_label  = "service"
+    replacement   = "$1"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_network_name"]
+    regex         = "^/?(.+)$"
+    target_label  = "network"
+    replacement   = "$1"
+  }
+}
+
+loki.source.docker "default" {
+  host          = "unix:///var/run/docker.sock"
+  labels	= { source = "docker" }
+  targets       = discovery.docker.containers.targets
+  relabel_rules = discovery.relabel.logs_integrations_docker.rules
+  forward_to    = [loki.process.normalize_levels.receiver]
+}
+
+loki.source.journal "system" {
+  path		= "/run/log/journal"
+  labels	= { service = "system-journal", host = "serveur-pi", source = "journal" }
+  forward_to	= [loki.relabel.exclude_pivpn.receiver]
+}
+
+loki.relabel "exclude_pivpn" {
+  forward_to = [loki.process.normalize_levels.receiver]
+  rule {
+    source_labels = ["syslog_identifier"]
+    regex         = "(openvpn|wg-quick|pivpn)"
+    action        = "drop"
+  }
+  rule {
+    source_labels = ["_SYSTEMD_UNIT"]
+    regex         = "(openvpn.*|wg-quick@.*|pivpn.*)"
+    action        = "drop"
+  }
+}
+
+loki.source.journal "pivpn" {
+  path          = "/run/log/journal"
+  labels        = { service = "pivpn", host = "serveur-pi", source = "journal" }
+  forward_to    = [loki.relabel.only_pivpn.receiver]
+}
+
+loki.relabel "only_pivpn" {
+  forward_to    = [loki.process.normalize_levels.receiver]
+  rule {
+    source_labels = ["syslog_identifier"]
+    regex         = "(openvpn|wg-quick|pivpn)"
+    action        = "keep"
+  }
+  rule {
+    source_labels = ["_SYSTEMD_UNIT"]
+    regex         = "(openvpn.*|wg-quick@.*|pivpn.*)"
+    action        = "keep"
+  }
+}
+
+loki.process "normalize_levels" {
+  forward_to = [loki.write.default.receiver]
+
+  // Exceptions
+    // Alloy
+  stage.match {
+    selector = "{service=\"alloy\"}"
+
+    stage.json { expressions = { level = "level", msg = "msg", component_id = "component_id" } }
+
+    stage.drop { expression = "Not found any information about referenced bytes in smaps files for any PID from CONTAINER" }
+    stage.drop {
+      expression = "Found node without any CPU, nodeDir: /sys/devices/system/node/node[0-9]+"
+    }
+    stage.drop {
+      expression = "Not found any information about referenced bytes in smaps files"
+    }
+
+    stage.replace {
+      source = "level"
+      expression = "(?i)^warn(ing)?$"
+      replace = "warning"
+    }
+    stage.replace {
+      source = "level"
+      expression = "(?i).*"
+      replace = "{{ ToLower .Extract.level }}"
+    }
+    stage.labels { values = { level = "level" } }
+  }
+
+  // 1) JSON : Caddy / Grafana / Loki
+  stage.match {
+    selector = "{service=~\"(caddy|grafana|loki)\"}"
+    stage.json { expressions = { level = "level" } }
+    stage.replace {
+      source = "level"
+      expression = "(?i)^warn(ing)?$"
+      replace = "warning"
+    }
+    stage.replace {
+      source = "level"
+      expression = "(?i).*"
+      replace = "{{ ToLower .Extract.level }}"
+    }
+    stage.labels  { values = { level = "level" } }
+  }
+  // 2) Cloudflared (format: "YYYY-MM-DDTHH:MM:SSZ INF message)
+  stage.match {
+    selector = "{service=\"cloudflared\"}"
+
+    stage.regex {
+      expression = "^(?P<ts>\\S+)\\s+(?P<level>[A-Z]+)\\s+(?P<msg>.*)$"
+      labels_from_groups = true
+    }
+    stage.replace {
+      source = "level"
+      expression = "(?i)^inf$"
+      replace = "info"
+    }
+    stage.replace {
+      source = "level"
+      expression = "(?i)^(warn|wrn)$"
+      replace = "warning"
+    }
+    stage.replace {
+      source = "level"
+      expression = "(?i)^(err|error)$"
+      replace = "error"
+    }
+    stage.replace {
+      source = "level"
+      expression = "(?i).*"
+      replace = "{{ ToLower .Extract.level }}"
+    }
+    stage.labels  { values = { level = "level" } }
+  }
+
+  // 3) Rust-style : Vaultwarden / Nextcloud notify_push
+  stage.match {
+    selector = "{service=~\"(vaultwarden|notify_push)\"}"
+    stage.regex {
+      expression = "^\\[(?P<ts>[^\\]]+)\\]\\s*(?P<level>TRACE|DEBUG|INFO|WARN|ERROR|FATAL)\\s*(?:\\[[^\\]]+\\])?.*?:\\d+:\\s*(?P<msg>.*)$"
+      labels_from_groups = true
+    }
+    stage.replace {
+      source="level"
+      expression="(?i)^warn$"
+      replace="warning"
+    }
+    stage.replace {
+      source="level"
+      expression="(?i).*"
+      replace="{{ ToLower .Extract.level }}"
+    }
+    stage.labels  { values = { level = "level" } }
+  }
+
+  // 4) Pi-hole / FTL
+  stage.match {
+    selector = "{service=\"pihole\"}"
+    stage.regex {
+      expression = "^\\d{4}-\\d{2}-\\d{2}\\s+\\d{2}:\\d{2}:\\d{2}\\.\\d{3}\\s+[A-Z]+\\s+\\[[^\\]]+\\]\\s+(?P<level>TRACE|DEBUG|INFO|NOTICE|WARN(?:ING)?|ERROR|CRIT(?:ICAL)?|FATAL|PANIC):\\s+(?P<msg>.*)$"
+      labels_from_groups = true
+    }
+    stage.replace {
+      source="level"
+      expression="(?i)^notice$"
+      replace="info"
+    }
+    stage.replace {
+      source="level"
+      expression="(?i)^warn(ing)?$"
+      replace="warning"
+    }
+    stage.replace {
+      source="level"
+      expression="(?i)^crit(ical)?$"
+      replace="critical"
+    }
+    stage.replace {
+      source="level"
+      expression="(?i).*"
+      replace="{{ ToLower .Extract.level }}"
+    }
+    stage.labels  { values = { level = "level" } }
+  }
+
+  // 5) Collabora / coolwsd (ERR, ERROR, CRIT…)
+  stage.match {
+    selector = "{service=~\"(collabora|wsd|coolwsd)\"}"
+    stage.regex {
+      expression = "(?i)\\b(?P<level>ERR|ERROR|WARN|WARNING|CRIT(?:ICAL)?|FATAL|PANIC|INFO|DEBUG|TRACE)\\b"
+      labels_from_groups = true
+    }
+    stage.replace {
+      source="level"
+      expression="(?i)^err$"
+      replace="error"
+    }
+    stage.replace {
+      source="level"
+      expression="(?i)^warn$"
+      replace="warning"
+    }
+    stage.replace {
+      source="level"
+      expression="(?i)^crit(ical)?$"
+      replace="critical"
+    }
+    stage.replace {
+      source="level"
+      expression="(?i).*"
+      replace="{{ ToLower .Extract.level }}"
+    }
+    stage.labels  { values = { level = "level" } }
+  }
+}
+
+loki.write "default" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}
+
+prometheus.exporter.cadvisor "docker" {
+  docker_host      = "unix:///var/run/docker.sock"
+  storage_duration = "5m"
+
+  disabled_metrics  = ["memory_numa", "cpu_topology"]  
+  docker_only	   = true
+}
+
+prometheus.scrape "cadvisor" {
+  targets         = prometheus.exporter.cadvisor.docker.targets
+  scrape_interval = "15s"
+  forward_to      = [prometheus.remote_write.local.receiver]
+}
+
+// Exporter des métriques système (CPU, RAM, etc.)
+prometheus.exporter.unix "self" {}
+
+// Scrape des métriques système locales
+prometheus.scrape "system" {
+  targets         = prometheus.exporter.unix.self.targets
+  scrape_interval = "15s"
+  forward_to      = [prometheus.remote_write.local.receiver]
+}
+
+prometheus.remote_write "local" {
+  endpoint {
+    url = "http://prometheus:9090/api/v1/write"
+  }
+}

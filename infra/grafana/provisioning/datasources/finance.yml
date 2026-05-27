@@ -1,0 +1,23 @@
+apiVersion: 1
+
+datasources:
+    - name: Finance PG
+      uid: finance-pg
+
+      type: postgres
+      access: proxy
+      url: finance-db:5432
+      user: finance
+
+      secureJsonData:
+          password: $__file{/run/secrets/finance_pgpwd}
+
+      jsonData:
+          database: finance
+          sslmode: disable
+          postgresVersion: 1600
+          timescaledb: false
+          timezone: Europe/Paris
+
+      isDefault: true
+      editable: false

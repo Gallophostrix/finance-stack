@@ -1,9 +1,3 @@
-# Other containers
-grafana/
-alloy/
-prometheus/
-loki/
-
 # Secrets & env
 secrets
 .env
