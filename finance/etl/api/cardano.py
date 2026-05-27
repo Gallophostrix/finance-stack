@@ -45,17 +45,6 @@ def _get_cardano_accounts(conn: PGConnection) -> list[tuple[int, str]]:
         return cur.fetchall()
 
 
-def _get_asset_map(conn: PGConnection) -> dict[str, str]:
-    """
-    Returns {policy_id_prefix: asset_code} for active Cardano native assets.
-    Reads policy_id from YAML via DB — stored in coingecko_id for now,
-    so we load from assets YAML directly via a helper.
-    """
-    # We load policy_id from the YAML files at runtime
-    # This map is built by the caller after parsing YAMLs
-    return {}
-
-
 def _last_flow_date(conn: PGConnection, account_id: int) -> Optional[date]:
     """Returns the most recent flow date for this account."""
     with conn.cursor() as cur:
@@ -238,8 +227,17 @@ def _fetch_tx_details(
     tx_hash: str,
 ) -> Optional[dict]:
     """Fetch full transaction details including inputs/outputs."""
-    data = _post(client, "tx_info", {"_tx_hashes": [tx_hash]})
-    return data[0] if data else None
+
+    # Fetch transaction timestamp
+    info = _post(client, "tx_info", {"_tx_hashes": [tx_hash]})
+
+    # Fetch transaction details
+    utxos = _post(client, "tx_utxos", {"_tx_hashes": [tx_hash]})
+    if not info or not utxos:
+        return None
+    result = utxos[0]
+    result["tx_timestamp"] = info[0].get("tx_timestamp", 0)
+    return result
 
 
 def _parse_flows_from_tx(
@@ -269,12 +267,14 @@ def _parse_flows_from_tx(
         if out.get("stake_addr") == stake_key:
             ada_in += Decimal(str(out.get("value", 0))) * LOVELACE
 
-    if ada_in > 0:
+    ada_net = ada_in - ada_out
+    print(f"tx={tx_hash[:16]} in={ada_in:.3f} out={ada_out:.3f} net={ada_net:.3f}")
+    if ada_net > 0:
         uid = f"cardano:{tx_hash}:{account_id}:ADA:in"
-        rows.append((uid, d, account_id, "ADA", ada_in, "in", tx_hash))
-    if ada_out > 0:
+        rows.append((uid, d, account_id, "ADA", ada_net, "in", tx_hash))
+    elif ada_net < 0:
         uid = f"cardano:{tx_hash}:{account_id}:ADA:out"
-        rows.append((uid, d, account_id, "ADA", ada_out, "out", tx_hash))
+        rows.append((uid, d, account_id, "ADA", -ada_net, "out", tx_hash))
 
     # Native asset flows
     for out in tx_detail.get("outputs", []):

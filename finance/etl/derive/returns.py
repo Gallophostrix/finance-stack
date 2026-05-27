@@ -16,6 +16,7 @@ from datetime import date
 from decimal import Decimal
 from typing import Optional
 
+from dateutil.relativedelta import relativedelta
 from psycopg2.extensions import connection as PGConnection
 
 log = logging.getLogger("root")
@@ -60,6 +61,28 @@ def _category_snapshots(
         return [(d, Decimal(str(v))) for d, v in cur.fetchall()]
 
 
+def _category_snapshots_filtered(
+    conn: PGConnection,
+    category: str,
+    exclude: list[str],
+) -> list[tuple[date, Decimal]]:
+    placeholders = ",".join(["%s"] * len(exclude))
+    with conn.cursor() as cur:
+        cur.execute(
+            f"""
+            SELECT b.d, SUM(b.value_eur) AS total
+            FROM derived.balances_eur b
+            JOIN core.assets a ON a.asset_code = b.asset
+            WHERE a.class = %s
+              AND b.asset NOT IN ({placeholders})
+            GROUP BY b.d
+            ORDER BY b.d
+        """,
+            [category] + exclude,
+        )
+        return [(d, Decimal(str(v))) for d, v in cur.fetchall()]
+
+
 def _asset_snapshots(
     conn: PGConnection,
     asset: str,
@@ -85,13 +108,16 @@ def _flows_between(
     to_date: date,
     category: Optional[str] = None,
     asset: Optional[str] = None,
+    exclude_interest: bool = False,
+    exclude_assets: Optional[list[str]] = None,
 ) -> list[tuple[date, Decimal]]:
     """
     Net flows (in - out) between two dates.
     Returns [(date, signed_amount)] sorted by date.
     """
-    filters = ["f.d > %s", "f.d <= %s"]
+    filters = ["f.d >= %s", "f.d <= %s"]
     params = [from_date, to_date]
+    interest_val = "0" if exclude_interest else "f.amount_eur"
 
     if category:
         filters.append("a.class = %s")
@@ -99,6 +125,10 @@ def _flows_between(
     if asset:
         filters.append("f.asset = %s")
         params.append(asset)
+    if exclude_assets:
+        placeholders = ",".join(["%s"] * len(exclude_assets))
+        filters.append(f"f.asset NOT IN ({placeholders})")
+        params.extend(exclude_assets)
 
     where = " AND ".join(filters)
     join = "JOIN core.assets a ON a.asset_code = f.asset" if category else ""
@@ -107,7 +137,7 @@ def _flows_between(
     SELECT f.d,
            SUM(CASE f.kind
                WHEN 'in'       THEN  f.amount_eur
-               WHEN 'interest' THEN  f.amount_eur
+               WHEN 'interest' THEN  {interest_val}
                WHEN 'out'      THEN -f.amount_eur
                ELSE 0
            END) AS net_flow
@@ -162,7 +192,7 @@ def compute_twr(
 
         # Sum flows between d_start and d_end
         period_flows = sum(
-            v for d, v in flows_by_date.items() if d_start < d <= d_end
+            v for d, v in flows_by_date.items() if d_start <= d < d_end
         ) or Decimal("0")
 
         denominator = v_start + period_flows
@@ -178,9 +208,59 @@ def compute_twr(
             continue
 
         sub_return = v_end / denominator
+
         twr *= sub_return
 
     return twr - Decimal("1")
+
+
+def _compute_category_twr_weighted(
+    conn: PGConnection,
+    category: str,
+    exclude_assets: Optional[list[str]] = None,
+) -> Optional[Decimal]:
+    """
+    By class TWR = weighted average of individual TWR assets.
+    Weight = average value over the period (V0 + Vn) / 2.
+    Excludes assets without a calculable TWR (< 2 snapshots).
+    """
+    exclude_assets = exclude_assets or []
+
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT DISTINCT a.asset_code
+            FROM core.assets a
+            JOIN derived.balances_eur b ON b.asset = a.asset_code
+            WHERE a.class = %s AND a.is_active = TRUE
+            """,
+            (category,),
+        )
+        assets = [row[0] for row in cur.fetchall() if row[0] not in exclude_assets]
+
+    weighted_sum = Decimal("0")
+    total_weight = Decimal("0")
+
+    for asset_code in assets:
+        snaps = _asset_snapshots(conn, asset_code)
+        if len(snaps) < 2:
+            continue
+        a_start = snaps[0][0]
+        a_end = snaps[-1][0]
+        flows = _flows_between(conn, a_start, a_end, asset=asset_code)
+        twr = compute_twr(snaps, flows)
+        if twr is None:
+            continue
+
+        v0 = snaps[0][1]
+        vn = snaps[-1][1]
+        weight = (v0 + vn) / Decimal("2")
+        weighted_sum += twr * weight
+        total_weight += weight
+
+    if total_weight == 0:
+        return None
+    return weighted_sum / total_weight
 
 
 # ---------- MWR (IRR via Newton's method) ----------
@@ -214,9 +294,10 @@ def compute_mwr(
 
     # Intermediate flows
     for d, amount in flows:
-        if d <= d_start or d > d_end:
+        if d < d_start or d >= d_end:
             continue
-        t = Decimal(str((d - d_start).days)) / Decimal("365")
+        d_adjusted = d + relativedelta(months=1)
+        t = Decimal(str((d_adjusted - d_start).days)) / Decimal("365")
         cf.append((t, -amount))  # negative = investor put in money
 
     # Terminal: investor "receives" v_end at t=n
@@ -315,16 +396,17 @@ def run(conn: PGConnection) -> dict:
 
     as_of = snapshots_all[-1][0]
     d_start = snapshots_all[0][0]
-    d_end = as_of
+    d_end_flows = snapshots_all[-2][0]
     categories = ["crypto", "actions", "epargne"]
 
     counts = {"twr": 0, "mwr": 0}
 
     # ── Global portfolio ──────────────────────────────────────────
-    flows_all = _flows_between(conn, d_start, d_end)
+    flows_twr = _flows_between(conn, d_start, d_end_flows, exclude_interest=False)
+    flows_mwr = _flows_between(conn, d_start, d_end_flows, exclude_interest=True)
 
-    twr = compute_twr(snapshots_all, flows_all)
-    mwr = compute_mwr(snapshots_all, flows_all)
+    twr = compute_twr(snapshots_all, flows_twr)
+    mwr = compute_mwr(snapshots_all, flows_mwr)
 
     _upsert_return(conn, as_of, "twr", "category", "portfolio", "", twr)
     _upsert_return(conn, as_of, "mwr", "category", "portfolio", "", mwr)
@@ -343,13 +425,30 @@ def run(conn: PGConnection) -> dict:
 
     # ── By class ────────────────────────────────────────────────
     for cat in categories:
-        snaps = _category_snapshots(conn, cat)
-        if len(snaps) < 2:
-            continue
-        flows = _flows_between(conn, d_start, d_end, category=cat)
+        exclude = ["COMPTE_COURANT", "ESPECES"]
 
-        twr = compute_twr(snaps, flows)
-        mwr = compute_mwr(snaps, flows)
+        twr = _compute_category_twr_weighted(conn, cat, exclude_assets=exclude)
+
+        if cat == "epargne":
+            snaps = _category_snapshots_filtered(conn, cat, exclude)
+            flows_mwr = _flows_between(
+                conn,
+                d_start,
+                d_end_flows,
+                category=cat,
+                exclude_assets=exclude,
+                exclude_interest=True,
+            )
+        else:
+            snaps = _category_snapshots(conn, cat)
+            flows_mwr = _flows_between(
+                conn, d_start, d_end_flows, category=cat, exclude_interest=True
+            )
+
+        if len(snaps) >= 2:
+            mwr = compute_mwr(snaps, flows_mwr)
+        else:
+            mwr = None
 
         _upsert_return(conn, as_of, "twr", "category", cat, "", twr)
         _upsert_return(conn, as_of, "mwr", "category", cat, "", mwr)
@@ -369,11 +468,16 @@ def run(conn: PGConnection) -> dict:
 
     # ── By asset ─────────────────────────────────────────────────
     for asset_code, asset_class in _active_assets(conn):
+        EXCLUDE_FROM_ASSET_TWR = {"COMPTE_COURANT", "ESPECES"}
+        if asset_code in EXCLUDE_FROM_ASSET_TWR:
+            continue
+
         snaps = _asset_snapshots(conn, asset_code)
         if len(snaps) < 2:
             continue
-        flows = _flows_between(conn, d_start, d_end, asset=asset_code)
-
+        a_start = snaps[0][0]
+        a_end = snaps[-1][0]
+        flows = _flows_between(conn, a_start, a_end, asset=asset_code)
         twr = compute_twr(snaps, flows)
         if twr is None:
             continue

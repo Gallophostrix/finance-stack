@@ -22,6 +22,7 @@
               pyyaml
               pytest
               pip
+              python-dateutil
             ]))
             # Tools
             pkgs.ruff

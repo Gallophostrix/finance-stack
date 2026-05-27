@@ -83,8 +83,8 @@ services:
             - FINANCE_PG_PASSWORD_FILE=/run/secrets/finance_pgpwd
         volumes:
             - grafana-storage:/var/lib/grafana
-            - ./grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
-            - ./grafana/datasources:/etc/grafana/provisioning/datasources:ro
+            - ./grafana/provisioning:/etc/grafana/provisioning:ro
+            - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
             - ../secrets/grafana_pwd.txt:/run/secrets/grafana_adminpwd:ro
             - ../secrets/postgres_pwd.txt:/run/secrets/finance_pgpwd:ro
         networks:
