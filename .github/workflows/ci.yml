@@ -70,7 +70,8 @@ jobs:
             - name: Wait for DB
               run: |
                   for i in {1..30}; do
-                    pg_isready -h 127.0.0.1 -p 5432 -U finance -d finance && break
+                    pg_isready -h 127.0.0.1 -p 5432 -U finance -d finance &&
+                    break
                     sleep 1
                   done
             - name: Apply init SQL
