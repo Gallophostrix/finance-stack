@@ -7,8 +7,8 @@ import os
 import time
 from typing import Optional
 
-import psycopg2
-from psycopg2.extensions import connection as PGConnection
+import psycopg
+from psycopg import Connection as PGConnection
 
 log = logging.getLogger("root")
 
@@ -47,18 +47,18 @@ def resolve_dsn() -> str:
 def connect(dsn: Optional[str] = None) -> PGConnection:
     """
     Connect to PostgreSQL with exponential retry.
-    Raises psycopg2.OperationalError after max retries.
+    Raises psycopg.OperationalError after max retries.
     """
     dsn = dsn or resolve_dsn()
     last_err: Optional[Exception] = None
 
     for attempt in range(1, _MAX_RETRIES + 1):
         try:
-            conn = psycopg2.connect(dsn)
+            conn = psycopg.connect(dsn)
             conn.autocommit = False
             log.info("db_connected", extra={"attempt": attempt})
             return conn
-        except psycopg2.OperationalError as e:
+        except psycopg.OperationalError as e:
             last_err = e
             log.warning(
                 "db_connect_failed",
@@ -67,6 +67,6 @@ def connect(dsn: Optional[str] = None) -> PGConnection:
             if attempt < _MAX_RETRIES:
                 time.sleep(_RETRY_DELAY * attempt)
 
-    raise psycopg2.OperationalError(
+    raise psycopg.OperationalError(
         f"Failed to connect after {_MAX_RETRIES} attempts"
     ) from last_err

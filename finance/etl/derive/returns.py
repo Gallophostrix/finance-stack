@@ -17,7 +17,7 @@ from decimal import Decimal
 from typing import Optional
 
 from dateutil.relativedelta import relativedelta
-from psycopg2.extensions import connection as PGConnection
+from psycopg import Connection as PGConnection
 
 log = logging.getLogger("root")
 

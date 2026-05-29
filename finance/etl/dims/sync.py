@@ -7,7 +7,7 @@ No parsing logic here — pure DB operations.
 import logging
 from dataclasses import dataclass
 
-from psycopg2.extensions import connection as PGConnection
+from psycopg import Connection as PGConnection
 
 from etl.dims.parser import AccountSpec, AssetSpec, DimFile, ProviderSpec
 

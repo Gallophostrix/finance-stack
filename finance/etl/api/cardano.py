@@ -18,7 +18,7 @@ from datetime import date, datetime, timezone
 from decimal import Decimal
 from typing import Optional
 
-from psycopg2.extensions import connection as PGConnection
+from psycopg import Connection as PGConnection
 
 from etl.common.http import HttpClient, HttpError
 

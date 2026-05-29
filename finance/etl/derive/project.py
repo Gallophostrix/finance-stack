@@ -13,7 +13,7 @@ import logging
 from datetime import date
 from typing import Optional
 
-from psycopg2.extensions import connection as PGConnection
+from psycopg import Connection as PGConnection
 
 log = logging.getLogger("root")
 

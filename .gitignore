@@ -1,25 +1,22 @@
 # Secrets & env
 secrets
 .env
-
+.direnv
 
 # Data
 finance/assets/
 finance/data/
 
-# DB data / volumes (on ne versionne pas les données)
+# DB data / volumes
 finance/sql/*.dump
 finance/sql/*.bak
+
+# Dev
+result
+result-*
 
 # Python
 **/__pycache__/
 **/*.pyc
 **/*.pyo
 **/*.log
-
-# IDE / OS
-.vscode/
-.DS_Store
-
-# Cache
-.ruff_cache/
