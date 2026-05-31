@@ -28,6 +28,8 @@
     after =
       ["postgresql.service"]
       ++ lib.optional needsNetwork "network-online.target";
+    wants =
+      lib.optional needsNetwork "network-online.target";
     requires = ["postgresql.service"];
 
     # ── Common Environment for all systemd services ───────────────────
@@ -36,6 +38,10 @@
       Group = cfg.user;
       Type = "oneshot";
       RemainAfterExit = false;
+
+      Environment =
+        lib.optional (cfg.coinGeckoKeyFile != "")
+        "COINGECKO_KEY_FILE=${cfg.coinGeckoKeyFile}";
 
       WorkingDirectory = cfg.dataDir;
 
@@ -47,6 +53,7 @@
 
       ExecStart = pkgs.writeShellScript "finance-${name}" ''
         set -euo pipefail
+        export PATH="${pkgs.postgresql_16}/bin:$PATH"
         export PG_DSN="postgresql:///${cfg.postgresDb}?host=/run/postgresql&user=${cfg.postgresUser}"
         ${script}
       '';
@@ -92,6 +99,12 @@ in {
       '';
     };
 
+    coinGeckoKeyFile = lib.mkOption {
+      type = lib.types.str;
+      default = "";
+      description = "Path to the sops-nix file containing the CoinGecko API key (raw).";
+    };
+
     timerOnCalendar = lib.mkOption {
       type = lib.types.str;
       default = "*-*-01 00:01:00";
@@ -133,6 +146,10 @@ in {
           name = cfg.postgresUser;
           ensureDBOwnership = true;
         }
+        {
+          name = "grafana";
+          ensureDBOwnership = false;
+        }
       ];
       ensureDatabases = [cfg.postgresDb];
 
@@ -140,6 +157,7 @@ in {
       # without a password via the Unix socket.
       authentication = lib.mkAfter ''
         local ${cfg.postgresDb} ${cfg.postgresUser} peer
+        host  ${cfg.postgresDb} grafana localhost trust
       '';
     };
 
@@ -149,7 +167,8 @@ in {
     # Creates a schema_migrations table to track applied migrations.
 
     systemd.services.finance-migrate =
-      mkFinanceService {
+      lib.recursiveUpdate
+      (mkFinanceService {
         name = "migrate";
         description = "Finance : PostgreSQL migrations";
         script = ''
@@ -178,12 +197,23 @@ in {
               echo "Migration $name already applied, skipping."
             fi
           done
+
+          # Grants Grafana — idempotents
+          psql -d ${cfg.postgresDb} -c "
+            GRANT CONNECT ON DATABASE ${cfg.postgresDb} TO grafana;
+            GRANT USAGE ON SCHEMA core, market, derived TO grafana;
+            GRANT SELECT ON ALL TABLES IN SCHEMA core TO grafana;
+            GRANT SELECT ON ALL TABLES IN SCHEMA market TO grafana;
+            GRANT SELECT ON ALL TABLES IN SCHEMA derived TO grafana;
+          "
         '';
-      }
-      // {
+      })
+      {
         wantedBy = ["multi-user.target"];
-        serviceConfig.StateDirectory = "finance";
-        serviceConfig.StateDirectoryMode = "0750";
+        serviceConfig = {
+          StateDirectory = "finance";
+          StateDirectoryMode = "0750";
+        };
       };
 
     # ── One-shot ETL services ─────────────────────────────────────────────────
@@ -194,6 +224,20 @@ in {
     #   systemctl start finance-monthly
 
     # Not wantedBy (does not start automatically)
+
+    systemd.services.finance-import-balances = mkFinanceService {
+      name = "import-balances";
+      description = "Finance : Import balances";
+      needsNetwork = true;
+      script = "${financeEtl}/bin/finance-import-balances";
+    };
+
+    systemd.services.finance-import-flows = mkFinanceService {
+      name = "import-flows";
+      description = "Finance : Import flows";
+      needsNetwork = true;
+      script = "${financeEtl}/bin/finance-import-flows";
+    };
 
     systemd.services.finance-fetch-prices = mkFinanceService {
       name = "fetch-prices";
@@ -251,6 +295,24 @@ in {
         description = "Finance : monthly workflow";
         needsNetwork = true;
         script = ''
+          date=$(date +%Y-%m-01)
+          balances_file="${cfg.dataDir}/data/balances/$date.csv"
+          flows_file="${cfg.dataDir}/data/flows/$date.csv"
+
+          if [ -f "$balances_file" ]; then
+            echo "==> import-balances"
+            ${financeEtl}/bin/finance-import-balances --date $date --file $balances_file
+          else
+            echo "No balances file for $date, skipping"
+          fi
+
+          if [ -f "$flows_file" ]; then
+            echo "==> import-flows"
+            ${financeEtl}/bin/finance-import-flows --date $date --file $flows_file
+          else
+            echo "No flows file for $date, skipping"
+          fi
+
           echo "==> fetch-prices"
           ${financeEtl}/bin/finance-fetch-prices
 

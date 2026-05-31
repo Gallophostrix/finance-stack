@@ -65,11 +65,15 @@ in
     nativeBuildInputs = [pkgs.makeWrapper];
 
     postInstall = ''
-      # finance-sync-dims : ajoute --assets <dataDir>/assets par défaut
+      # finance-etl : copies SQL scripts to $out/lib/finance-etl/sql
+      mkdir -p $out/lib/finance-etl/sql
+      cp -r $src/finance/sql/* $out/lib/finance-etl/sql/
+
+      # finance-sync-dims : adds --assets <dataDir>/assets by default
       wrapProgram $out/bin/finance-sync-dims \
         --add-flags "--assets ${dataDir}/assets"
 
-      # finance-fetch-cardano : idem
+      # finance-fetch-cardano
       wrapProgram $out/bin/finance-fetch-cardano \
         --add-flags "--assets ${dataDir}/assets"
     '';
