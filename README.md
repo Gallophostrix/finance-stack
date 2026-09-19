@@ -1,178 +1,181 @@
 # finance-stack
 
-Self-hosted personal finance monitoring stack — ETL pipeline, PostgreSQL, and
-Grafana dashboards for tracking portfolio performance across asset classes.
+Self-hosted personal finance monitoring — Python ETL pipeline, PostgreSQL,
+Grafana dashboards. Deployed on Selene (NixOS) via a native Nix module.
 
-## Overview
+## Architecture
 
-Aggregates balances and cash flows from multiple sources (manual CSV, blockchain
-APIs, market data) into a unified PostgreSQL database. Computes time-weighted
-and money-weighted returns (TWR/MWR) and exposes everything via Grafana.
-
+``` text
+CSV (manual)   ─┐
+Blockchain APIs─┼─► core.* (native)   ─► derived.* (EUR) ─► returns_itd
+CoinGecko      ─┘         │
+                          └────────────────────────────► Grafana
 ```
-CSV (manual)  ─┐
-Blockchain APIs─┼─► core.* (native) ─► derived.* (EUR) ─► returns_itd
-CoinGecko      ─┘                              │
-                                               └─► Grafana dashboards
-```
+
+Three PostgreSQL 16 schemas:
+
+| Schema    | Role                                                        |
+|-----------|--------------------------------------------------------------|
+| `core`    | Dimensions (assets, providers, accounts) + native facts (balances, flows) |
+| `market`  | EOD prices (`prices_eur`)                                    |
+| `derived` | EUR projection + ITD returns (`returns_itd`)                 |
+
+Versioned, numbered SQL migrations (`001_`, `002_`, `003_`), applied
+automatically on boot via a `public.schema_migrations` table
+(idempotent — see `finance-migrate` below).
 
 ## Stack
 
-| Component   | Role                                      |
-|-------------|-------------------------------------------|
-| PostgreSQL  | Central store — raw, market, derived data |
-| Python/ETL  | Fetch, import, derive, compute returns    |
-| CoinGecko   | EOD prices for crypto assets              |
-| Koios       | Cardano on-chain data                     |
-| Mempool     | Bitcoin on-chain data                     |
-| Routescan   | Avalanche on-chain data                   |
-| XRPL RPC    | XRP on-chain data                         |
-| Grafana     | Dashboards — allocation, performance, KPIs|
-| Loki        | Log aggregation                           |
-| Prometheus  | Metrics                                   |
+| Component   | Role                                       |
+|-------------|--------------------------------------------|
+| Nix flake   | Packaging + NixOS module (replaces Make/Docker/requirements.txt) |
+| PostgreSQL 16 | Storage — native via `services.postgresql`, Unix socket only (no TCP) |
+| Python 3.12 / `finance-etl` | Fetch, import, derive, returns calculation — `pyproject.toml` package |
+| systemd (oneshot + timer) | Monthly pipeline orchestration |
+| sops-nix    | Secrets (CoinGecko key, Grafana password if TCP) |
+| CoinGecko / Koios / Mempool / Routescan / XRPL RPC | Price and on-chain data sources |
+| Grafana / Loki / Prometheus / Alloy | Observability (`infra/`) |
 
 ## Repository structure
 
-```
+``` text
 monitoring/
-├── infra/
-│   ├── compose.yml          # Grafana, Loki, Prometheus, Alloy
-│   ├── grafana/             # Provisioning — datasources, dashboards
-│   ├── loki/                # Loki config
-│   └── prometheus/          # Prometheus config + scrape targets
+├── flake.nix                # Nix devShell + inputs
+├── Makefile                 # OBSOLETE — see warning above
+├── nix/
+│   ├── package.nix          # buildPythonApplication — finance-etl package
+│   └── module.nix           # services.finance NixOS module
 ├── finance/
-│   ├── compose.yml          # PostgreSQL
-│   ├── sql/                 # Schema init — init_core.sql, init_market.sql,
-│   │                        #   init_derived.sql
-│   ├── etl/                 # Python package
+│   ├── pyproject.toml       # replaces requirements/base.txt + dev.txt
+│   ├── sql/                 # 001_init_core.sql, 002_init_derived.sql, 003_init_market.sql
+│   ├── etl/
 │   │   ├── common/          # db.py, http.py, logging.py
 │   │   ├── dims/            # YAML → DB sync
-│   │   ├── api/             # Blockchain + price fetchers
+│   │   ├── api/             # blockchain + price fetchers
 │   │   └── derive/          # EUR projection + returns
-│   ├── scripts/             # CLI entrypoints (see below)
-│   ├── assets/              # YAML per provider (asset definitions)
+│   ├── scripts/             # CLI entrypoints (exposed as finance-*)
+│   ├── assets/              # YAML per provider (asset/account definitions)
 │   ├── data/
 │   │   ├── balances/        # Monthly balance CSVs
-│   │   └── flows/           # Monthly flow CSVs
-│   └── requirements/
-│       ├── base.txt
-│       └── dev.txt
-├── secrets/                 # gitignored
-├── Makefile
-└── flake.nix                # Nix devShell
+│   └   └── flows/           # Monthly flow CSVs
+├── infra/
+│   ├── alloy/config.alloy
+│   ├── grafana/provisioning/
+│   ├── loki/config.yml
+│   └── prometheus/prometheus.yml
+└── secrets/                  # gitignored — sops-nix
+    ├── coingecko_key.txt
+    ├── grafana_pwd.txt
+    └── postgres_pwd.txt
 ```
 
-## Database schema
+## Nix packaging
 
-Three schemas in PostgreSQL 16 :
+`nix/package.nix` builds `finance-etl` via `buildPythonApplication`
+(Python 3.12, `pyproject = true`):
 
-**`core`** — raw data, native units
-- `assets` — asset registry (code, class, is_active)
-- `providers` — data providers
-- `accounts` — accounts per provider
-- `balances_native` — monthly balance snapshots (amount in native units)
-- `flows_native` — cash flows (in / out / interest, native units)
+- Filtered source: `finance/pyproject.toml`, `finance/etl`, `finance/scripts`, `finance/sql`
+- Runtime deps (`propagatedBuildInputs`): `psycopg[binary]`, `httpx`, `pyyaml`, `python-dateutil`
+- `pythonImportsCheck = ["etl"]` — build fails if the package is broken
+- `postInstall`: copies `sql/` into `$out/lib/finance-etl/sql` (read by `finance-migrate`), and wraps `finance-sync-dims` / `finance-fetch-cardano` with `--assets <dataDir>/assets`
 
-**`market`** — price data
-- `prices_eur` — EOD prices in EUR (CoinGecko, manual)
+Exposed entrypoints (`pyproject.toml` → `[project.scripts]`):
 
-**`derived`** — computed data, EUR
-- `balances_eur` — balances projected to EUR
-- `flows_eur` — flows projected to EUR
-- `returns_itd` — TWR/MWR inception-to-date (portfolio / category / asset)
-
-### Key conventions
-
-- Balances are recorded on the **1st of each month** = net value at that point
-- A flow dated `YYYY-MM-01` occurred during that month and is reflected in the
-  balance of the following month
-- On-chain flows are dated to their actual transaction date (same convention
-  applies — impact visible in the next monthly balance)
-- Manual assets (ETFs, savings): `amount_native` = EUR value, `price_eur = 1.0`
-- Crypto assets: `amount_native` = real units, `price_eur` via CoinGecko
-
-## ETL pipeline
-
-```
-sync_dims        YAML assets/providers/accounts → core.*
-import_balances  CSV → core.balances_native
-import_flows     CSV → core.flows_native
-fetch_prices     CoinGecko EOD → market.prices_eur
-fetch_bitcoin    Mempool.space → balances + flows BTC
-fetch_cardano    Koios → balances + flows ADA + native tokens
-fetch_avalanche  Routescan + RPC → balances + flows AVAX
-fetch_xrpl       Ripple public RPC → balances + flows XRP
-derive           core.* + market.* → derived.balances_eur + derived.flows_eur
-compute_returns  derived.* → derived.returns_itd (TWR/MWR ITD)
+``` text
+finance-sync-dims        finance-fetch-avalanche
+finance-fetch-prices     finance-fetch-xrpl
+finance-fetch-bitcoin    finance-import-balances
+finance-fetch-cardano    finance-import-flows
+finance-derive           finance-returns
 ```
 
-## Returns methodology
+## NixOS module — `services.finance`
 
-**TWR (Time-Weighted Return)** — measures portfolio manager performance,
-independent of cash flow timing. Computed as the product of sub-period returns:
+Declared in `nix/module.nix`, enabled via `services.finance.enable = true`.
 
-```
-sub_return(t) = V_end / (V_start + flows_in_period)
-TWR = ∏ (1 + sub_return) - 1
-```
+### Main options
 
-**MWR (Money-Weighted Return)** — measures investor return, accounts for cash
-flow timing. Computed as IRR via Newton's method.
+| Option | Default | Role |
+|---|---|---|
+| `dataDir` | `/var/lib/finance` | Mutable directory (CSV, YAML assets) |
+| `user` | `finance` | Dedicated system user |
+| `postgresUser` / `postgresDb` | `finance` / `finance` | PostgreSQL identity |
+| `coinGeckoKeyFile` | — | Path to the sops-nix secret (CoinGecko key) |
+| `grafanaSecretsFile` | — | Required only if Grafana connects over TCP (socket is enough otherwise) |
+| `timerOnCalendar` | `*-*-01 00:01:00` | systemd calendar for the monthly run |
 
-Granularity stored in `derived.returns_itd`:
-- `portfolio` — global TWR + MWR
-- `category` — per asset class (crypto / actions / epargne), TWR as
-  weighted average of individual asset TWRs
-- `asset` — per asset TWR
+### What the module does
+
+1. **System user** `finance` (no home, no login), member of the `postgres` group for socket access
+2. **Native PostgreSQL**: `enableTCPIP = false`, `peer` auth for the `finance` user on the `finance` DB, local `trust` access for `grafana`
+3. **`finance-migrate`** (`wantedBy = multi-user.target`): applies, on boot, any SQL migration not yet recorded in `schema_migrations`, then `GRANT SELECT` to `grafana` on `core`/`market`/`derived`
+4. **One-shot services** per ETL command (`finance-import-balances`, `finance-fetch-bitcoin`, etc.) — **not started automatically**, launched manually:
+
+   ```bash
+   systemctl start finance-fetch-cardano
+   systemctl start finance-derive
+   ```
+
+5. **`finance-monthly`**: orchestrates the full pipeline (import current month's balances/flows if the CSVs exist → fetch prices/bitcoin/cardano/avalanche/xrpl → derive → returns)
+6. **`finance-monthly` timer**: triggers `finance-monthly.service` per `timerOnCalendar`, `Persistent = true` (catches up the run if the machine was off)
+
+systemd isolation on every service: `NoNewPrivileges`, `PrivateTmp`,
+`ProtectSystem = "strict"`, write access restricted to `dataDir`.
 
 ## Usage
 
-### Prerequisites
+### Initial setup
 
-- Nix with flakes enabled, or Python 3.11+ with `requirements/base.txt`
-- Docker + Docker Compose
-- `secrets/postgres_pwd.txt` — PostgreSQL password (gitignored)
-
-### Setup
-
-```bash
-# Start PostgreSQL (schema applied automatically via init scripts)
-docker compose -f finance/compose.yml up -d
-
-# Start observability stack
-docker compose -f infra/compose.yml up -d
-
-# Enter dev environment (Nix)
-nix develop
+```nix
+# configuration.nix or flake host
+services.finance = {
+  enable = true;
+  coinGeckoKeyFile = config.sops.secrets.coingecko_key.path;
+  # timerOnCalendar default: 1st of month at 00:01
+};
 ```
 
-### Makefile targets
-
-```
-make sync-dims                           Sync YAML definitions → DB
-make import-balances DATE=YYYY-MM-DD \
-                     FILE=path/to.csv   Import monthly balances
-make import-flows    DATE=YYYY-MM-DD \
-                     FILE=path/to.csv   Import monthly flows
-make fetch-prices                        Fetch EOD prices (CoinGecko)
-make fetch-crypto                        Fetch all blockchains
-make fetch-bitcoin/cardano/avalanche/xrpl  Individual blockchain fetch
-make derive                              Project native → EUR
-make derive-from DATE=YYYY-MM-DD         Re-project from a specific date
-make returns                             Compute TWR/MWR
-make monthly                             Full monthly workflow
-make full-refresh                        Sync + fetch + derive + returns
-```
-
-Append `DRY_RUN=1` to any target to run without DB writes.
+After `nixos-rebuild switch`, `finance-migrate` applies the schema on boot.
 
 ### Monthly workflow
 
-Each month:
-1. Fill `finance/data/balances/YYYY-MM-01.csv` with account balances
-2. Fill `finance/data/flows/YYYY-MM-01.csv` with manual flows (ETF purchases,
-   savings movements, etc.)
-3. Run `make monthly`
+1. Drop `finance/data/balances/YYYY-MM-01.csv` and
+   `finance/data/flows/YYYY-MM.csv` into `dataDir`
+2. The timer triggers `finance-monthly` automatically on the 1st of the
+   month — or manually:
+
+   ```bash
+   systemctl start finance-monthly
+   journalctl -u finance-monthly -f
+   ```
+
+### Individual commands
+
+```bash
+systemctl start finance-import-balances
+systemctl start finance-import-flows
+systemctl start finance-fetch-prices
+systemctl start finance-fetch-bitcoin
+systemctl start finance-fetch-cardano
+systemctl start finance-fetch-avalanche
+systemctl start finance-fetch-xrpl
+systemctl start finance-derive
+systemctl start finance-returns
+```
+
+The `finance-*` binaries are also directly available system-wide
+(`environment.systemPackages = [financeEtl]`), usable outside systemd for
+debugging:
+
+```bash
+finance-derive --dry-run
+```
+
+### Dev shell
+
+```bash
+nix develop
+```
 
 ## Asset classes
 
@@ -183,11 +186,24 @@ Each month:
 | epargne  | Savings accounts + euro fund       |
 | immo     | Real estate (net equity)           |
 
+## Returns methodology
+
+**TWR** (Time-Weighted Return) — performance independent of cash flow timing:
+
+```
+sub_return(t) = V_end / (V_start + flows_in_period)
+TWR = ∏ (1 + sub_return) - 1
+```
+
+**MWR** (Money-Weighted Return) — investor return, IRR via Newton's method.
+
+Granularity stored in `derived.returns_itd`: `portfolio` (global TWR+MWR),
+`category` (per asset class), `asset` (per asset).
+
 ## CI
 
-GitHub Actions (`.github/workflows/ci.yml`):
-- **python** — ruff lint on `etl/`
-- **yaml** — yamllint on workflows, compose files, grafana/loki/prometheus
-  configs, asset definitions
-- **sql** — smoke test: applies init SQL files against a fresh PostgreSQL 16
-  instance
+`.github/workflows/ci.yml` — needs re-checking: the `ruff` lint on `etl/`
+and the SQL smoke test are probably still relevant, but the CI likely
+still references `requirements/` and the old Docker pipeline for the SQL
+test; needs adapting to build via `nix build .#finance-etl` and validate
+migrations in `001`→`002`→`003` order.
