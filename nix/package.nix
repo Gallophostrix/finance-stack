@@ -25,7 +25,6 @@ in
 
     pyproject = true;
 
-    # pyproject.toml is in finance/ not at the root of the src
     sourceRoot = "source/finance";
 
     # ── Dependencies ───────────────────────────────────────────────────────────

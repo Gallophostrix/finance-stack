@@ -7,13 +7,13 @@ Flow uid format: avalanche:{tx_hash}:{account_id}:{kind}
 """
 
 import logging
-from datetime import date, datetime, timezone
+from datetime import date, datetime, UTC
 from decimal import Decimal
-from typing import Optional
 
 from psycopg import Connection as PGConnection
 
 from etl.common.http import HttpClient, HttpError
+from etl.common.dates import today_utc
 
 log = logging.getLogger("root")
 
@@ -36,7 +36,7 @@ def _get_avax_accounts(conn: PGConnection) -> list[tuple[int, str]]:
         return cur.fetchall()
 
 
-def _last_flow_date(conn: PGConnection, account_id: int) -> Optional[date]:
+def _last_flow_date(conn: PGConnection, account_id: int) -> date | None:
     with conn.cursor() as cur:
         cur.execute(
             """
@@ -49,7 +49,12 @@ def _last_flow_date(conn: PGConnection, account_id: int) -> Optional[date]:
     return row[0] if row and row[0] else None
 
 
-def _upsert_balance(conn, account_id, cut_date, amount) -> None:
+def _upsert_balance(
+    conn: PGConnection,
+    account_id: int,
+    cut_date: date,
+    amount: Decimal,
+) -> None:
     sql = """
     INSERT INTO core.balances_native (d, account_id, asset, amount_native, observed_at)
     VALUES (%s, %s, 'AVAX', %s, NOW())
@@ -62,7 +67,7 @@ def _upsert_balance(conn, account_id, cut_date, amount) -> None:
     conn.commit()
 
 
-def _upsert_flows(conn, rows: list[tuple]) -> tuple[int, int]:
+def _upsert_flows(conn: PGConnection, rows: list[tuple]) -> tuple[int, int]:
     sql = """
     INSERT INTO core.flows_native
       (flow_uid, d, account_id, asset, amount_native, kind, origin_ref)
@@ -107,7 +112,7 @@ def _fetch_balance(client: HttpClient, address: str) -> Decimal:
 def _fetch_txs(
     client: HttpClient,
     address: str,
-    since_date: Optional[date] = None,
+    since_date: date | None = None,
 ) -> list[dict]:
     txs = []
     page = 1
@@ -147,7 +152,7 @@ def _fetch_txs(
                 continue
 
             ts = int(tx["timeStamp"])
-            d = datetime.fromtimestamp(ts, tz=timezone.utc).date()
+            d = datetime.fromtimestamp(ts, tz=UTC).date()
 
             if since_date and d < since_date:
                 log.info(
@@ -200,9 +205,9 @@ def _parse_flows(
 # ---------- Main ----------
 
 
-def run(conn: PGConnection, cut_date: Optional[date] = None) -> dict:
+def run(conn: PGConnection, cut_date: date | None = None) -> dict:
     client = HttpClient(max_rps=3.0)
-    today = date.today()
+    today = today_utc()
     cut_date = cut_date or date(today.year, today.month, 1)
 
     accounts = _get_avax_accounts(conn)

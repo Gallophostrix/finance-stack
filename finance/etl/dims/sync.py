@@ -32,6 +32,7 @@ def _upsert_provider(conn: PGConnection, provider: ProviderSpec) -> int:
     with conn.cursor() as cur:
         cur.execute(sql, (provider.type, provider.name))
         row = cur.fetchone()
+    assert row is not None
     return row[0]
 
 

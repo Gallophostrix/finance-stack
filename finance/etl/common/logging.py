@@ -5,7 +5,7 @@ Call setup_logging() once at the start of each script.
 
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 
 # Fields that are part of LogRecord internals — never treat as extra
 _RESERVED = {
@@ -37,7 +37,7 @@ _RESERVED = {
 class JsonFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         entry = {
-            "ts": datetime.now(timezone.utc).isoformat(),
+            "ts": datetime.now(UTC).isoformat(),
             "level": record.levelname.lower(),
             "logger": record.name,
             "msg": record.getMessage(),

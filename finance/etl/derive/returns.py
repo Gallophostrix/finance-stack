@@ -14,10 +14,10 @@ All returns are ITD (Inception To Date) from the earliest available date.
 import logging
 from datetime import date
 from decimal import Decimal
-from typing import Optional
+from typing import LiteralString, cast
 
 from dateutil.relativedelta import relativedelta
-from psycopg import Connection as PGConnection
+from psycopg import Connection as PGConnection, sql as psycopg_sql
 
 log = logging.getLogger("root")
 
@@ -66,10 +66,19 @@ def _category_snapshots_filtered(
     category: str,
     exclude: list[str],
 ) -> list[tuple[date, Decimal]]:
-    placeholders = ",".join(["%s"] * len(exclude))
-    with conn.cursor() as cur:
-        cur.execute(
-            f"""
+    if not exclude:
+        query = psycopg_sql.SQL("""
+            SELECT b.d, SUM(b.value_eur) AS total
+            FROM derived.balances_eur b
+            JOIN core.assets a ON a.asset_code = b.asset
+            WHERE a.class = %s
+            GROUP BY b.d
+            ORDER BY b.d
+        """)
+        params = [category]
+    else:
+        placeholders = psycopg_sql.SQL(", ").join(psycopg_sql.Placeholder() for _ in exclude)
+        query = psycopg_sql.SQL("""
             SELECT b.d, SUM(b.value_eur) AS total
             FROM derived.balances_eur b
             JOIN core.assets a ON a.asset_code = b.asset
@@ -77,9 +86,11 @@ def _category_snapshots_filtered(
               AND b.asset NOT IN ({placeholders})
             GROUP BY b.d
             ORDER BY b.d
-        """,
-            [category] + exclude,
-        )
+        """).format(placeholders=placeholders)
+        params = [category, *exclude]
+
+    with conn.cursor() as cur:
+        cur.execute(query, params)
         return [(d, Decimal(str(v))) for d, v in cur.fetchall()]
 
 
@@ -106,17 +117,17 @@ def _flows_between(
     conn: PGConnection,
     from_date: date,
     to_date: date,
-    category: Optional[str] = None,
-    asset: Optional[str] = None,
+    category: str | None = None,
+    asset: str | None = None,
     exclude_interest: bool = False,
-    exclude_assets: Optional[list[str]] = None,
+    exclude_assets: list[str] | None = None,
 ) -> list[tuple[date, Decimal]]:
     """
     Net flows (in - out) between two dates.
     Returns [(date, signed_amount)] sorted by date.
     """
-    filters = ["f.d >= %s", "f.d <= %s"]
-    params = [from_date, to_date]
+    filters: list[str] = ["f.d >= %s", "f.d <= %s"]
+    params: list[date | str] = [from_date, to_date]
     interest_val = "0" if exclude_interest else "f.amount_eur"
 
     if category:
@@ -133,7 +144,7 @@ def _flows_between(
     where = " AND ".join(filters)
     join = "JOIN core.assets a ON a.asset_code = f.asset" if category else ""
 
-    sql = f"""
+    query_text = f"""
     SELECT f.d,
            SUM(CASE f.kind
                WHEN 'in'       THEN  f.amount_eur
@@ -147,8 +158,10 @@ def _flows_between(
     GROUP BY f.d
     ORDER BY f.d
     """
+    query = psycopg_sql.SQL(cast(LiteralString, query_text))
+
     with conn.cursor() as cur:
-        cur.execute(sql, params)
+        cur.execute(query, params)
         return [(d, Decimal(str(v))) for d, v in cur.fetchall()]
 
 
@@ -171,7 +184,7 @@ def _active_assets(conn: PGConnection) -> list[tuple[str, str]]:
 def compute_twr(
     snapshots: list[tuple[date, Decimal]],
     flows: list[tuple[date, Decimal]],
-) -> Optional[Decimal]:
+) -> Decimal | None:
     """
     Compute Time-Weighted Return from monthly snapshots and flows.
 
@@ -217,8 +230,8 @@ def compute_twr(
 def _compute_category_twr_weighted(
     conn: PGConnection,
     category: str,
-    exclude_assets: Optional[list[str]] = None,
-) -> Optional[Decimal]:
+    exclude_assets: list[str] | None = None,
+) -> Decimal | None:
     """
     By class TWR = weighted average of individual TWR assets.
     Weight = average value over the period (V0 + Vn) / 2.
@@ -269,7 +282,7 @@ def _compute_category_twr_weighted(
 def compute_mwr(
     snapshots: list[tuple[date, Decimal]],
     flows: list[tuple[date, Decimal]],
-) -> Optional[Decimal]:
+) -> Decimal | None:
     """
     Compute Money-Weighted Return (IRR) using Newton's method.
 
@@ -368,7 +381,7 @@ def _upsert_return(
     level: str,
     category: str,
     asset: str,
-    value: Optional[Decimal],
+    value: Decimal | None,
 ) -> None:
     if value is None:
         return

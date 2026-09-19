@@ -14,13 +14,13 @@ Flow uid format:
 """
 
 import logging
-from datetime import date, datetime, timezone
+from datetime import date, datetime, UTC
 from decimal import Decimal
-from typing import Optional
 
 from psycopg import Connection as PGConnection
 
 from etl.common.http import HttpClient, HttpError
+from etl.common.dates import today_utc
 
 log = logging.getLogger("root")
 
@@ -45,7 +45,7 @@ def _get_cardano_accounts(conn: PGConnection) -> list[tuple[int, str]]:
         return cur.fetchall()
 
 
-def _last_flow_date(conn: PGConnection, account_id: int) -> Optional[date]:
+def _last_flow_date(conn: PGConnection, account_id: int) -> date | None:
     """Returns the most recent flow date for this account."""
     with conn.cursor() as cur:
         cur.execute(
@@ -167,7 +167,7 @@ def _fetch_native_assets(
 def _fetch_txs(
     client: HttpClient,
     stake_key: str,
-    since_date: Optional[date] = None,
+    since_date: date | None = None,
 ) -> list[dict]:
     """Fetch transactions for stake key, newest first, stopping at since_date."""
     txs = []
@@ -198,7 +198,7 @@ def _fetch_txs(
 
         for tx in data:
             ts = tx.get("block_time", 0)
-            d = datetime.fromtimestamp(ts, tz=timezone.utc).date()
+            d = datetime.fromtimestamp(ts, tz=UTC).date()
             if since_date and d < since_date:
                 log.info(
                     "cardano_txs_reached_cutoff",
@@ -225,7 +225,7 @@ def _fetch_txs(
 def _fetch_tx_details(
     client: HttpClient,
     tx_hash: str,
-) -> Optional[dict]:
+) -> dict | None:
     """Fetch full transaction details including inputs/outputs."""
 
     # Fetch transaction timestamp
@@ -253,7 +253,7 @@ def _parse_flows_from_tx(
     rows = []
     tx_hash = tx_detail.get("tx_hash", "")
     ts = tx_detail.get("tx_timestamp", 0)
-    d = datetime.fromtimestamp(ts, tz=timezone.utc).date()
+    d = datetime.fromtimestamp(ts, tz=UTC).date()
 
     # ADA flows
     ada_in = Decimal("0")
@@ -301,7 +301,7 @@ def _parse_flows_from_tx(
 def run(
     conn: PGConnection,
     policy_map: dict[str, str],
-    cut_date: Optional[date] = None,
+    cut_date: date | None = None,
 ) -> dict:
     """
     Fetch balances and flows for all Cardano accounts.
@@ -310,7 +310,7 @@ def run(
     cut_date:   balance snapshot date (default: 1st of current month)
     """
     client = HttpClient(max_rps=1.0)
-    today = date.today()
+    today = today_utc()
     cut_date = cut_date or date(today.year, today.month, 1)
 
     accounts = _get_cardano_accounts(conn)

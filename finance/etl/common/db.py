@@ -5,7 +5,6 @@ PostgreSQL connection with retry and DSN resolution.
 import logging
 import os
 import time
-from typing import Optional
 
 import psycopg
 from psycopg import Connection as PGConnection
@@ -44,13 +43,13 @@ def resolve_dsn() -> str:
     )
 
 
-def connect(dsn: Optional[str] = None) -> PGConnection:
+def connect(dsn: str | None = None) -> PGConnection:
     """
     Connect to PostgreSQL with exponential retry.
     Raises psycopg.OperationalError after max retries.
     """
     dsn = dsn or resolve_dsn()
-    last_err: Optional[Exception] = None
+    last_err: Exception | None = None
 
     for attempt in range(1, _MAX_RETRIES + 1):
         try:

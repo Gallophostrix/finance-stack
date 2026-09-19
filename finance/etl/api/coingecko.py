@@ -12,13 +12,13 @@ Endpoint used:
 
 import logging
 import os
-from datetime import date, datetime, timezone
+from datetime import date, datetime, UTC
 from decimal import ROUND_HALF_UP, Decimal
-from typing import Optional
 
 from psycopg import Connection as PGConnection
 
 from etl.common.http import HttpClient, HttpError
+from etl.common.dates import today_utc
 
 log = logging.getLogger("root")
 
@@ -69,7 +69,7 @@ def _needed_asset_dates(
     Only includes dates within the Demo plan limit (365 days back).
     Excludes EUR-native assets (no API call needed).
     """
-    cutoff_date = date.fromordinal(date.today().toordinal() - DEMO_LIMIT)
+    cutoff_date = date.fromordinal(today_utc().toordinal() - DEMO_LIMIT)
     sql = """
     WITH needed AS (
       SELECT DISTINCT asset, d FROM core.balances_native
@@ -150,12 +150,12 @@ def _fetch_range(
 
     start_ts = int(
         datetime(
-            start_d.year, start_d.month, start_d.day, tzinfo=timezone.utc
+            start_d.year, start_d.month, start_d.day, tzinfo=UTC
         ).timestamp()
     )
     end_ts = int(
         datetime(
-            end_d.year, end_d.month, end_d.day, 23, 59, 59, tzinfo=timezone.utc
+            end_d.year, end_d.month, end_d.day, 23, 59, 59, tzinfo=UTC
         ).timestamp()
     )
 
@@ -174,7 +174,7 @@ def _fetch_range(
 
     per_day: dict[date, Decimal] = {}
     for ms_ts, price in data.get("prices", []):
-        d = datetime.fromtimestamp(ms_ts / 1000.0, tz=timezone.utc).date()
+        d = datetime.fromtimestamp(ms_ts / 1000.0, tz=UTC).date()
         per_day[d] = _round8(price)
 
     found = len({d for d in dates if d in per_day})
@@ -228,7 +228,7 @@ def seed_manual_prices(conn: PGConnection) -> int:
 # ---------- Orchestrator ----------
 
 
-def run(conn: PGConnection, api_key: Optional[str] = None) -> int:
+def run(conn: PGConnection, api_key: str | None = None) -> int:
     api_key = api_key or load_api_key()
     client = HttpClient(max_rps=0.4)
 

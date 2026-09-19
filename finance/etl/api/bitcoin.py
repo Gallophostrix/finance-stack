@@ -11,13 +11,13 @@ Flow uid format: bitcoin:{txid}:{account_id}:{vout_index}:{kind}
 """
 
 import logging
-from datetime import date, datetime, timezone
+from datetime import date, datetime, UTC
 from decimal import Decimal
-from typing import Optional
 
 from psycopg import Connection as PGConnection
 
 from etl.common.http import HttpClient, HttpError
+from etl.common.dates import today_utc
 
 log = logging.getLogger("root")
 
@@ -41,7 +41,7 @@ def _get_btc_accounts(conn: PGConnection) -> list[tuple[int, str]]:
         return cur.fetchall()
 
 
-def _last_flow_date(conn: PGConnection, account_id: int) -> Optional[date]:
+def _last_flow_date(conn: PGConnection, account_id: int) -> date | None:
     """Returns the most recent flow date for this account, or None."""
     with conn.cursor() as cur:
         cur.execute(
@@ -114,7 +114,7 @@ def _fetch_balance(client: HttpClient, address: str) -> Decimal:
 def _fetch_txs(
     client: HttpClient,
     address: str,
-    since_date: Optional[date] = None,
+    since_date: date | None = None,
 ) -> list[dict]:
     """
     Fetch all confirmed transactions for address.
@@ -151,7 +151,7 @@ def _fetch_txs(
                 continue
 
             ts = tx["status"].get("block_time", 0)
-            tx_d = datetime.fromtimestamp(ts, tz=timezone.utc).date()
+            tx_d = datetime.fromtimestamp(ts, tz=UTC).date()
 
             if since_date and tx_d < since_date:
                 log.info(
@@ -186,7 +186,7 @@ def _parse_flows(
     for tx in txs:
         txid = tx["txid"]
         ts = tx["status"]["block_time"]
-        d = datetime.fromtimestamp(ts, tz=timezone.utc).date()
+        d = datetime.fromtimestamp(ts, tz=UTC).date()
 
         # Incoming: vouts to our address
         for i, vout in enumerate(tx.get("vout", [])):
@@ -209,13 +209,13 @@ def _parse_flows(
 # ---------- Main ----------
 
 
-def run(conn: PGConnection, cut_date: Optional[date] = None) -> dict:
+def run(conn: PGConnection, cut_date: date | None = None) -> dict:
     """
     Fetch balances and flows for all BTC accounts.
     cut_date: date for balance snapshot (default: today's month start)
     """
     client = HttpClient(max_rps=2.0)
-    today = date.today()
+    today = today_utc()
     cut_date = cut_date or date(today.year, today.month, 1)
 
     accounts = _get_btc_accounts(conn)

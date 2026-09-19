@@ -11,7 +11,6 @@ Missing prices are logged as warnings — rows are skipped, not failed.
 
 import logging
 from datetime import date
-from typing import Optional
 
 from psycopg import Connection as PGConnection
 
@@ -23,7 +22,7 @@ log = logging.getLogger("root")
 
 def project_balances(
     conn: PGConnection,
-    from_date: Optional[date] = None,
+    from_date: date | None = None,
 ) -> int:
     """
     Upsert derived.balances_eur for all (d, account_id, asset) in
@@ -92,7 +91,7 @@ def project_balances(
 
 def project_flows(
     conn: PGConnection,
-    from_date: Optional[date] = None,
+    from_date: date | None = None,
 ) -> int:
     """
     Upsert derived.flows_eur for all flows in core.flows_native
@@ -164,7 +163,7 @@ def project_flows(
 
 def run(
     conn: PGConnection,
-    from_date: Optional[date] = None,
+    from_date: date | None = None,
 ) -> dict:
     """Run both projections. Returns counts."""
     balances = project_balances(conn, from_date=from_date)

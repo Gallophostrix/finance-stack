@@ -46,12 +46,17 @@ def main() -> None:
                 SELECT COUNT(*) FROM core.balances_native b
                 JOIN market.prices_eur p ON p.asset = b.asset AND p.d = b.d
             """)
-            bal = cur.fetchone()[0]
+            row = cur.fetchone()
+            assert row is not None
+            bal = row[0]
+
             cur.execute("""
                 SELECT COUNT(*) FROM core.flows_native f
                 JOIN market.prices_eur p ON p.asset = f.asset AND p.d = f.d
             """)
-            flo = cur.fetchone()[0]
+            row = cur.fetchone()
+            assert row is not None
+            flo = row[0]
         log.info(
             "dry_run_counts",
             extra={"balances_projectable": bal, "flows_projectable": flo},

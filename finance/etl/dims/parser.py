@@ -22,7 +22,6 @@ Expected YAML structure:
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 import yaml
 
@@ -53,7 +52,7 @@ class AssetSpec:
     asset_class: str
     decimals: int
     is_active: bool
-    coingecko_id: Optional[str] = None
+    coingecko_id: str | None = None
 
 
 @dataclass
@@ -79,7 +78,7 @@ def _normalize_provider_name(name: str) -> str:
     return name.lower().replace("_", "-")
 
 
-def _parse_provider(raw: dict, source: Path) -> Optional[ProviderSpec]:
+def _parse_provider(raw: dict, source: Path) -> ProviderSpec | None:
     ptype = raw.get("type", "").strip()
     pname = raw.get("name", "").strip()
 
@@ -177,7 +176,7 @@ def _parse_accounts(raw_list: list, source: Path) -> list[AccountSpec]:
     return result
 
 
-def parse_file(path: Path) -> Optional[DimFile]:
+def parse_file(path: Path) -> DimFile | None:
     """
     Parse a single YAML file.
     Returns None if the file is invalid (errors are logged).

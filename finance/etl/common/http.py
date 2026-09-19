@@ -4,7 +4,7 @@ HTTP client with rate limiting, retry, and structured logging.
 
 import logging
 import time
-from typing import Any, Optional
+from typing import Any
 
 import httpx
 
@@ -12,7 +12,7 @@ log = logging.getLogger("root")
 
 
 class HttpError(Exception):
-    def __init__(self, method: str, url: str, status: int, body: str):
+    def __init__(self, method: str, url: str, status: int, body: str) -> None:
         self.method = method
         self.url = url
         self.status = status
@@ -23,7 +23,7 @@ class HttpError(Exception):
 class RateLimiter:
     """Token bucket — enforces max N requests per second."""
 
-    def __init__(self, max_rps: float):
+    def __init__(self, max_rps: float) -> None:
         self.min_interval = 1.0 / max_rps
         self._last: float = 0.0
 
@@ -48,8 +48,8 @@ class HttpClient:
         max_rps: float = 5.0,
         max_retries: int = 4,
         timeout: float = 30.0,
-        headers: Optional[dict] = None,
-    ):
+        headers: dict | None = None,
+    ) -> None:
         self._limiter = RateLimiter(max_rps)
         self._max_retries = max_retries
         self._client = httpx.Client(
@@ -61,14 +61,14 @@ class HttpClient:
     def get(
         self,
         url: str,
-        params: Optional[dict] = None,
-        headers: Optional[dict] = None,
+        params: dict | None = None,
+        headers: dict | None = None,
     ) -> httpx.Response:
         """
         GET with rate limiting and retry.
         Raises HttpError on non-2xx after all retries.
         """
-        last_err: Optional[HttpError] = None
+        last_err: HttpError | None = None
 
         for attempt in range(1, self._max_retries + 1):
             self._limiter.wait()
@@ -122,8 +122,8 @@ class HttpClient:
     def get_json(
         self,
         url: str,
-        params: Optional[dict] = None,
-        headers: Optional[dict] = None,
+        params: dict | None = None,
+        headers: dict | None = None,
     ) -> Any:
         resp = self.get(url, params=params, headers=headers)
         return resp.json()
@@ -131,20 +131,20 @@ class HttpClient:
     def close(self) -> None:
         self._client.close()
 
-    def __enter__(self):
+    def __enter__(self) -> "HttpClient":
         return self
 
-    def __exit__(self, *_):
+    def __exit__(self, *_: object) -> None:
         self.close()
 
     def post_json(
         self,
         url: str,
         body: dict,
-        headers: Optional[dict] = None,
+        headers: dict | None = None,
     ) -> Any:
         """POST JSON with rate limiting and retry."""
-        last_err: Optional[HttpError] = None
+        last_err: HttpError | None = None
 
         for attempt in range(1, self._max_retries + 1):
             self._limiter.wait()

@@ -22,6 +22,8 @@ from datetime import date
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
+from psycopg import Connection as PGConnection
+
 from etl.common.db import connect
 from etl.common.logging import setup_logging
 
@@ -33,7 +35,7 @@ VALID_KINDS = {"in", "out", "interest"}
 # ---------- DB helpers ----------
 
 
-def _load_account_map(conn) -> dict[str, int]:
+def _load_account_map(conn: PGConnection) -> dict[str, int]:
     with conn.cursor() as cur:
         cur.execute("SELECT account_id, label FROM core.accounts WHERE is_active")
         mapping = {label: aid for aid, label in cur.fetchall()}
@@ -41,7 +43,7 @@ def _load_account_map(conn) -> dict[str, int]:
     return mapping
 
 
-def _load_asset_set(conn) -> set[str]:
+def _load_asset_set(conn: PGConnection) -> set[str]:
     with conn.cursor() as cur:
         cur.execute("SELECT asset_code FROM core.assets WHERE is_active")
         assets = {r[0] for r in cur.fetchall()}
@@ -49,7 +51,7 @@ def _load_asset_set(conn) -> set[str]:
     return assets
 
 
-def _load_provider_map(conn) -> dict[int, str]:
+def _load_provider_map(conn: PGConnection) -> dict[int, str]:
     """account_id -> provider_name."""
     with conn.cursor() as cur:
         cur.execute("""
@@ -99,7 +101,7 @@ def _parse_csv(path: Path) -> list[dict]:
 # ---------- Validation ----------
 
 
-def _validate(rows, account_map, asset_set) -> tuple[list, list]:
+def _validate(rows: list[dict], account_map: dict[str, int], asset_set: set[str]) -> tuple[list, list]:
     valid, errors = [], []
     for r in rows:
         errs = []
@@ -137,7 +139,7 @@ def _validate(rows, account_map, asset_set) -> tuple[list, list]:
 # ---------- DB write ----------
 
 
-def _upsert(conn, flow_date: date, rows: list, provider_map: dict) -> tuple[int, int]:
+def _upsert(conn: PGConnection, flow_date: date, rows: list, provider_map: dict) -> tuple[int, int]:
     sql = """
     INSERT INTO core.flows_native
       (flow_uid, d, account_id, asset, amount_native, kind, origin_ref)

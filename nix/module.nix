@@ -40,7 +40,7 @@
       RemainAfterExit = false;
 
       Environment =
-        lib.optional (cfg.coinGeckoKeyFile != "")
+        lib.optional (cfg.coinGeckoKeyFile != null)
         "COINGECKO_KEY_FILE=${cfg.coinGeckoKeyFile}";
 
       WorkingDirectory = cfg.dataDir;
@@ -100,8 +100,8 @@ in {
     };
 
     coinGeckoKeyFile = lib.mkOption {
-      type = lib.types.str;
-      default = "";
+      type = lib.types.nullOr lib.types.str;
+      default = null;
       description = "Path to the sops-nix file containing the CoinGecko API key (raw).";
     };
 
