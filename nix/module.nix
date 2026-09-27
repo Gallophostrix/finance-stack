@@ -11,7 +11,7 @@
   financeEtl =
     pkgs.callPackage
     (inputs.finance-stack + "/nix/package.nix")
-    {inherit (cfg) dataDir;};
+    {inherit (cfg) dataDir postgresUser postgresDb coinGeckoKeyFile;};
 
   # ── mkFinanceService helper ───────────────────────────────────────────────
 
@@ -105,6 +105,17 @@ in {
       description = "Path to the sops-nix file containing the CoinGecko API key (raw).";
     };
 
+    allowedUsers = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [];
+      description = ''
+        System users allowed to run finance-* commands directly.
+        They are added to the finance group, which grants both
+        PostgreSQL access (via ident map) and read access to secrets
+        owned by that group.
+      '';
+    };
+
     timerOnCalendar = lib.mkOption {
       type = lib.types.str;
       default = "*-*-01 00:01:00";
@@ -120,14 +131,24 @@ in {
 
   config = lib.mkIf cfg.enable {
     # ── User and system group ────────────────────────────────────────────────
-    users.users.${cfg.user} = {
-      # isSystemUser => no home, no login
-      isSystemUser = true;
-      group = cfg.user;
-      # Access to PostgreSQL socket
-      extraGroups = ["postgres"];
-      description = "Finance ETL service user";
-    };
+
+    users.users =
+      lib.listToAttrs (map (name:
+        lib.nameValuePair name {
+          extraGroups = [cfg.user];
+        })
+      cfg.allowedUsers)
+      // {
+        ${cfg.user} = {
+          # isSystemUser => no home, no login
+          isSystemUser = true;
+          group = cfg.user;
+          # Access to PostgreSQL socket
+          extraGroups = ["postgres"];
+          description = "Finance ETL service user";
+        };
+      };
+
     users.groups.${cfg.user} = {};
 
     # ── PostgreSQL ────────────────────────────────────────────────────────────
@@ -151,12 +172,19 @@ in {
           ensureDBOwnership = false;
         }
       ];
+
+      identMap =
+        lib.concatMapStringsSep "\n"
+        (u: "finance-users ${u} ${cfg.postgresUser}")
+        (cfg.allowedUsers ++ [cfg.user]);
+
       ensureDatabases = [cfg.postgresDb];
 
       # Peer auth: the system user `finance` can connect to the `finance` DB
       # without a password via the Unix socket.
+      # local ${cfg.postgresDb} ${cfg.postgresUser} peer
       authentication = lib.mkAfter ''
-        local ${cfg.postgresDb} ${cfg.postgresUser} peer
+        local ${cfg.postgresDb} ${cfg.postgresUser} peer map=finance-users
         host  ${cfg.postgresDb} grafana localhost trust
       '';
     };

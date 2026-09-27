@@ -43,7 +43,15 @@
           ];
           shellHook = ''
             export PYTHONPATH="$PWD/finance:$PYTHONPATH"
-            echo "monitoring devShell ready — python $(python3 --version)"
+
+            echo ""
+            echo "─────────────────────────────────────────"
+            echo "  monitoring devShell"
+            echo "  python  : $(python3 --version | cut -d' ' -f2)"
+            echo "  ruff    : $(ruff --version | cut -d' ' -f2)"
+            echo "  git     : $(git rev-parse --short HEAD 2>/dev/null || echo 'n/a')"
+            echo "─────────────────────────────────────────"
+            echo ""
           '';
         };
       }

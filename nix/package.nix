@@ -2,6 +2,9 @@
   pkgs,
   lib,
   dataDir,
+  postgresUser ? "finance",
+  postgresDb ? "finance",
+  coinGeckoKeyFile ? null,
 }: let
   python = pkgs.python312;
 in
@@ -68,6 +71,12 @@ in
       mkdir -p $out/lib/finance-etl/sql
       cp -r $src/finance/sql/* $out/lib/finance-etl/sql/
 
+      for bin in $out/bin/finance-*; do
+            wrapProgram "$bin" \
+              --set PG_DSN "postgresql:///${postgresDb}?host=/run/postgresql&user=${postgresUser}" \
+              --set FINANCE_DATA_DIR "${dataDir}" \
+              ${lib.optionalString (coinGeckoKeyFile != null) ''--set COINGECKO_KEY_FILE "${coinGeckoKeyFile}"''}
+          done
       # finance-sync-dims : adds --assets <dataDir>/assets by default
       wrapProgram $out/bin/finance-sync-dims \
         --add-flags "--assets ${dataDir}/assets"
